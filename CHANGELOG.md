@@ -1,5 +1,14 @@
 # Changelog — Encoding Fixer
 
+## [5.0.0] - 2026-06-12
+
+### Changed
+- Migrated from Lovelace-card-only HACS plugin layout to a Home Assistant integration under `custom_components/ha_encoding_fixer/`.
+- Bundled the card through integration frontend registration.
+- Added WebSocket scan/fix/backup/restore API.
+- Added timestamped backup-before-write behavior for file fixes, entity registry fixes, and restores.
+- Added pure Python tests for backup path generation, mojibake detection, and dry-run diff building.
+
 ## [4.1.3] - 2026-05-12
 
 ### Fixed

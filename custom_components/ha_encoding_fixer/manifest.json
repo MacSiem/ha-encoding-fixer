@@ -1,0 +1,19 @@
+{
+  "domain": "ha_encoding_fixer",
+  "name": "Encoding Fixer",
+  "codeowners": [
+    "@MacSiem"
+  ],
+  "config_flow": true,
+  "dependencies": [
+    "frontend",
+    "http",
+    "websocket_api"
+  ],
+  "documentation": "https://github.com/MacSiem/ha-encoding-fixer",
+  "integration_type": "service",
+  "iot_class": "calculated",
+  "issue_tracker": "https://github.com/MacSiem/ha-encoding-fixer/issues",
+  "requirements": [],
+  "version": "5.0.0"
+}

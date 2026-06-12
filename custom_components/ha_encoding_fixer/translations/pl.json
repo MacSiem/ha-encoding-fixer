@@ -1,0 +1,14 @@
+{
+  "title": "Encoding Fixer",
+  "config": {
+    "step": {
+      "user": {
+        "title": "Encoding Fixer",
+        "description": "Skonfiguruj Encoding Fixer. Opcje nie sa wymagane."
+      }
+    },
+    "abort": {
+      "already_configured": "Encoding Fixer jest juz skonfigurowany."
+    }
+  }
+}
