@@ -4,6 +4,10 @@ Fix UTF-8/mojibake text in Home Assistant YAML config files and entity registry 
 
 ![Preview](banner.png)
 
+## Screenshot
+
+![Screenshot](screenshot.png)
+
 ## Installation
 
 Until this repository is accepted into the default HACS list, install it as a custom repository:
