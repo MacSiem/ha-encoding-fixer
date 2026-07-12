@@ -20,3 +20,6 @@ build/
 .env
 .env.local
 codex-runs/
+
+__pycache__/
+*.pyc
