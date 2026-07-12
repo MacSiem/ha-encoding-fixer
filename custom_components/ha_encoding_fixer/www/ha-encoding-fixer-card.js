@@ -1,4 +1,4 @@
-/* HA Tools split — ha-encoding-fixer v5.0.3 (2026-05-12) — single-tool standalone repo */
+/* HA Tools split — ha-encoding-fixer v5.0.5 (2026-07-12) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -2159,6 +2159,18 @@ class HaEncodingFixer extends HTMLElement {
     return /unknown|not found|no handler|invalid command|not supported/i.test(msg);
   }
 
+  _isUnauthorizedError(err) {
+    if (err && err.code === 'unauthorized') return true;
+    const msg = String((err && (err.message || err.code)) || err || '');
+    return /unauthorized|not authorized|forbidden|permission|admin/i.test(msg);
+  }
+
+  _adminRequiredMsg() {
+    return this._lang === 'pl'
+      ? 'Wymagane uprawnienia administratora, aby zastosowac poprawki'
+      : 'Admin permissions required to apply fixes';
+  }
+
   async _callEncodingFixerWS(payload, opts = {}) {
     if (!this._hass?.callWS) throw new Error('Home Assistant WebSocket API unavailable');
     try {
@@ -2274,7 +2286,11 @@ class HaEncodingFixer extends HTMLElement {
       return true;
     } catch (err) {
       console.warn('[Encoding Fixer] integration fix error:', err);
-      this._showToast((this._lang === 'pl' ? 'Blad integracji: ' : 'Integration error: ') + (err.message || err), 'error');
+      if (this._isUnauthorizedError(err)) {
+        this._showToast(this._adminRequiredMsg(), 'error');
+      } else {
+        this._showToast((this._lang === 'pl' ? 'Blad integracji: ' : 'Integration error: ') + (err.message || err), 'error');
+      }
       return true;
     }
   }
@@ -3428,7 +3444,11 @@ class HaEncodingFixer extends HTMLElement {
     } catch (err) {
       console.warn('[Encoding Fixer] restore backup error:', err);
       this._addFixLog('restore', backupId, 'failed', err.message || String(err));
-      this._showToast((this._lang === 'pl' ? 'Blad restore: ' : 'Restore error: ') + (err.message || err), 'error');
+      if (this._isUnauthorizedError(err)) {
+        this._showToast(this._adminRequiredMsg(), 'error');
+      } else {
+        this._showToast((this._lang === 'pl' ? 'Blad restore: ' : 'Restore error: ') + (err.message || err), 'error');
+      }
     }
   }
 

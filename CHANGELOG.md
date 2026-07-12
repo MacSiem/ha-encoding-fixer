@@ -1,5 +1,12 @@
 # Changelog
 
+## [5.0.5] - 2026-07-12
+
+- Fix: fix/restore failures caused by missing admin permissions are now detected
+  and reported with a clear toast ("Admin permissions required to apply fixes",
+  EN/PL) instead of a generic integration/restore error message.
+- Chore: aligned card JS version header with `manifest.json`/`const.py` (5.0.5).
+
 ## [5.0.4] - 2026-07-12
 
 - Fix: the card now renders for non-admin Home Assistant users — the read-only `list_backups` websocket command no longer requires admin (`scan` was already open). `fix` and `restore` stay admin-only — they write files on disk.
