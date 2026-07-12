@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Encoding Fixer screenshot harness</title>
+<style>
+  html, body { margin: 0; padding: 24px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+  body.light { background: #f4f5f7; }
+  body.light ha-encoding-fixer { --card-background-color: #ffffff; --primary-background-color: #f4f5f7; }
+  body.dark { background: #111318; }
+  body.dark ha-encoding-fixer { --card-background-color: #1c1e26; --primary-background-color: #111318; }
+  ha-encoding-fixer { display: block; width: 480px; }
+</style>
+</head>
+<body>
+<ha-encoding-fixer id="card"></ha-encoding-fixer>
+<script>
+  try { localStorage.setItem('ha-intro-dismissed-ha-encoding-fixer', '1'); } catch (e) {}
+</script>
+<script src="../../ha-encoding-fixer.js"></script>
+<script>
+(function () {
+  const params = new URLSearchParams(location.search);
+  const theme = params.get('theme') === 'dark' ? 'dark' : 'light';
+  const tab = params.get('tab') || 'scan';
+  document.body.className = theme;
+  const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+  // -- Demo entity registry + config-file mojibake, matching the shape the
+  // integration's `ha_encoding_fixer/scan` WebSocket command returns
+  // (custom_components/ha_encoding_fixer/websocket_api.py::_scan_all). --
+  const entityChanges = [
+    {
+      type: 'entity_registry', file: '.storage/core.entity_registry', line: 0,
+      entity_id: 'light.bathroom', attribute: 'friendly_name',
+      before: 'Åazienka', after: 'Łazienka', method: 'latin-1-roundtrip'
+    },
+    {
+      type: 'entity_registry', file: '.storage/core.entity_registry', line: 0,
+      entity_id: 'climate.kitchen', attribute: 'friendly_name',
+      before: 'KÃ¼che', after: 'Küche', method: 'latin-1-roundtrip'
+    },
+    {
+      type: 'entity_registry', file: '.storage/core.entity_registry', line: 0,
+      entity_id: 'switch.garage_door', attribute: 'friendly_name',
+      before: 'GaraÅ¼', after: 'Garaż', method: 'latin-1-roundtrip'
+    },
+    {
+      type: 'entity_registry', file: '.storage/core.entity_registry', line: 0,
+      entity_id: 'sensor.living_room_air_quality', attribute: 'friendly_name',
+      before: 'Salon â€“ jakoÅ›Ä‡ powietrza',
+      after: 'Salon – jakość powietrza', method: 'pattern-replace'
+    }
+  ];
+  const fileChanges = [
+    {
+      type: 'file', file: 'packages/climate.yaml', line: 42,
+      before: '    name: "Åazienka"', after: '    name: "Łazienka"'
+    },
+    {
+      type: 'file', file: 'configuration.yaml', line: 118,
+      before: 'friendly_name: "PokÃ³j dzienny"', after: 'friendly_name: "Pokój dzienny"'
+    }
+  ];
+  const scanResult = {
+    changes: [...entityChanges, ...fileChanges],
+    total: entityChanges.length + fileChanges.length,
+    scanned_files: 87,
+    errors: []
+  };
+  const backups = [
+    {
+      backup_id: '20260710-091542',
+      path: 'ha_encoding_fixer_backups/20260710-091542',
+      files: ['.storage/core.entity_registry', 'packages/climate.yaml'],
+      file_count: 2
+    },
+    {
+      backup_id: '20260705-201033',
+      path: 'ha_encoding_fixer_backups/20260705-201033',
+      files: ['configuration.yaml'],
+      file_count: 1
+    }
+  ];
+  const lovelaceResources = [
+    { id: '1', type: 'module', url: '/hacsfiles/ha-tools/ha-tools-panel.js' },
+    { id: '2', type: 'module', url: '/local/community/ha-encoding-fixer/ha-encoding-fixer-card.js?v=5.0.4' }
+  ];
+
+  const hass = {
+    language: 'en',
+    themes: { darkMode: theme === 'dark' },
+    user: { id: 'demo', name: 'Demo Admin', is_admin: true, is_owner: true },
+    states: {},
+    services: {}, // no shell_command entries -> legacy deep-scan hint stays hidden as "optional/not set up"
+    connection: { subscribeEvents: () => Promise.resolve(() => {}) },
+    callWS: async (msg) => {
+      const t = String((msg && msg.type) || '');
+      if (t === 'ha_encoding_fixer/scan') return scanResult;
+      if (t === 'ha_encoding_fixer/list_backups') return { backups };
+      if (t === 'ha_encoding_fixer/fix') {
+        if (msg.dry_run === false) {
+          return { dry_run: false, backup_id: '20260712120000', results: [], changed: 0, failed: 0 };
+        }
+        return { ...scanResult, changes: msg.changes || scanResult.changes, total: (msg.changes || scanResult.changes).length, dry_run: true };
+      }
+      if (t === 'ha_encoding_fixer/restore') return { backup_id: msg.backup_id, rollback_backup_id: '20260712120000', results: [] };
+      if (t === 'lovelace/resources') return lovelaceResources;
+      return {};
+    },
+    callApi: async () => ({}),
+    callService: async () => ({}),
+  };
+
+  const card = document.getElementById('card');
+  const click = (sel) => {
+    const el = card.shadowRoot && card.shadowRoot.querySelector(sel);
+    if (el) el.click();
+    return !!el;
+  };
+  const scrub = () => {
+    try {
+      card.shadowRoot && card.shadowRoot.querySelectorAll('#tip-banner, [class*="banner"], .donate-section, [class*="donate"], [class*="support"], [class*="tip"], [class*="hint"], [class*="advanced-info"]').forEach((n) => n.remove());
+      // Fallback: text-based removal of donate + optional-feature tip blocks.
+      card.shadowRoot && card.shadowRoot.querySelectorAll('div,section').forEach((n) => {
+        const t = n.textContent || '';
+        if (n.children.length && t.length < 700 && (/Support HA Tools Development/.test(t) || /Optional advanced feature/.test(t))) n.remove();
+      });
+    } catch (e) {}
+  };
+
+  card.setConfig({ type: 'custom:ha-encoding-fixer', title: 'Encoding Fixer' });
+  card.hass = hass;
+
+  (async () => {
+    await wait(120);
+    card.hass = { ...hass };
+    await wait(150);
+
+    // Always run the entity/file scan first — it populates both the Scan
+    // and Scan files tabs in one WS round trip (see _applyIntegrationScanResult).
+    click('[data-action="scan-entities"]');
+    await wait(150);
+
+    if (tab === 'yaml') {
+      click('.tab-btn[data-tab="yaml"]');
+      await wait(60);
+      click('[data-action="scan-api"]');
+      await wait(150);
+    } else if (tab === 'lovelace') {
+      click('.tab-btn[data-tab="lovelace"]');
+      await wait(60);
+      click('[data-action="scan-lovelace"]');
+      await wait(120);
+      click('[data-action="list-backups"]');
+      await wait(150);
+    } else if (tab === 'log') {
+      click('.tab-btn[data-tab="log"]');
+      await wait(60);
+    } else {
+      click('.tab-btn[data-tab="scan"]');
+      await wait(60);
+    }
+
+    scrub();
+    await wait(300);
+    scrub();
+    document.title = 'EF-READY';
+    setInterval(scrub, 150);
+  })();
+})();
+</script>
+</body>
+</html>
