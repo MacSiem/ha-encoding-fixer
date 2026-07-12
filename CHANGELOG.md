@@ -1,5 +1,9 @@
 # Changelog
 
+## [5.0.4] - 2026-07-12
+
+- Fix: the card now renders for non-admin Home Assistant users — the read-only `list_backups` websocket command no longer requires admin (`scan` was already open). `fix` and `restore` stay admin-only — they write files on disk.
+
 ## [5.0.3] - 2026-06-15
 
 - Theme: dark/light now follows the active Home Assistant theme (luminance of --card-background-color) instead of OS prefers-color-scheme.
