@@ -4,6 +4,10 @@
 
 - Fix (UI): responsive tab bar — tabs stretch to fill the card width and wrap on narrow layouts instead of being pinned to content width and clipped (shared HA Tools tab styling).
 
+## 5.0.6 (2026-07-17)
+
+- Fix (UI): responsive tab bar — tabs stretch to fill the card width and wrap on narrow layouts instead of being pinned to content width and clipped (shared HA Tools tab styling).
+
 ## [5.0.5] - 2026-07-12
 
 - Fix: fix/restore failures caused by missing admin permissions are now detected
