@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 DOMAIN = "ha_encoding_fixer"
-VERSION = "5.0.7"
+VERSION = "5.0.8"
 
 DATA_FRONTEND_REGISTERED = "_frontend_registered"
 DATA_WS_REGISTERED = "_ws_registered"
