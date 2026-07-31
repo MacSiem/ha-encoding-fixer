@@ -518,6 +518,8 @@ if (typeof window !== 'undefined') {
 // on every split-tool card regardless of internal render state.
 if (typeof window !== 'undefined' && !window.__haToolsSplitDonateInjector) {
   window.__haToolsSplitDonateInjector = true;
+  // NOTE: SPLIT_TAGS below is shared HA Tools family METADATA (donate-footer targets / cross-tool help gallery).
+  // It is plain data, not element registration - this card registers only 'ha-encoding-fixer' and 'ha-encoding-fixer-editor'.
   var SPLIT_TAGS = ['ha-purge-cache','ha-yaml-checker','ha-data-exporter','ha-baby-tracker','ha-chore-tracker','ha-energy-optimizer','ha-energy-insights','ha-energy-email','ha-log-email','ha-smart-reports','ha-network-map','ha-trace-viewer','ha-automation-analyzer','ha-storage-monitor','ha-backup-manager','ha-security-check','ha-device-health','ha-sentence-manager','ha-encoding-fixer','ha-entity-renamer','ha-frigate-privacy','ha-vacuum-water-monitor'];
   var DONATE_HTML = ''
     + '<div class="donate-section" data-source="ha-tools-split-injector">'
