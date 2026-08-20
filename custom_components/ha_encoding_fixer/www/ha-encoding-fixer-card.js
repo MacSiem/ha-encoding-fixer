@@ -1,4 +1,4 @@
-/* HA Tools split — ha-encoding-fixer v5.0.8 (2026-07-12) — single-tool standalone repo */
+/* HA Tools split — ha-encoding-fixer v5.0.10 (2026-08-20) — single-tool standalone repo */
 (function() {
 'use strict';
 

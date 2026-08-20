@@ -325,13 +325,14 @@ async def _apply_entity_fixes(
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/scan"})
+@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_scan(
     hass: HomeAssistant,
     connection: websocket_api.ActiveConnection,
     msg: dict[str, Any],
 ) -> None:
-    """Scan files and entity registry names. Read-only; no admin required."""
+    """Scan files and entity registry names for an administrator."""
     try:
         connection.send_result(msg["id"], await _scan_all(hass))
     except Exception as err:  # noqa: BLE001

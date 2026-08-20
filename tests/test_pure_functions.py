@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import importlib.util
 import sys
 import unittest
@@ -102,6 +103,21 @@ class DiffBuilderTests(unittest.TestCase):
                 },
             ],
         )
+
+
+class AuthorizationRegressionTests(unittest.TestCase):
+    def test_scan_websocket_command_requires_admin(self) -> None:
+        source = (ROOT / "custom_components/ha_encoding_fixer/websocket_api.py").read_text()
+        tree = ast.parse(source)
+        scan = next(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "_ws_scan"
+        )
+        decorators = {ast.unparse(decorator) for decorator in scan.decorator_list}
+
+        self.assertIn("websocket_api.require_admin", decorators)
 
 
 if __name__ == "__main__":

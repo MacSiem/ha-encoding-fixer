@@ -1,5 +1,10 @@
 # Changelog
 
+## 5.0.10 (2026-08-20)
+
+- Security: the scan WebSocket command now requires a Home Assistant administrator because its results can include before/after lines from YAML configuration files.
+- Chore: aligned the version in `const.py`, `manifest.json`, and the bundled card header.
+
 ## 5.0.9 (2026-07-31)
 
 - Docs-only: clarified in-code that the SPLIT_TAGS list and cross-family help entries in the bundled card are shared HA Tools family metadata (donate-footer targets / help gallery), not custom-element registrations; this card registers only `ha-encoding-fixer` and `ha-encoding-fixer-editor`. No functional changes.
