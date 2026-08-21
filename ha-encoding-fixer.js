@@ -1,4 +1,4 @@
-/* HA Tools split — ha-encoding-fixer v5.0.8 (2026-07-12) — single-tool standalone repo */
+/* HA Tools split — ha-encoding-fixer v5.0.11 (2026-08-21) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -2196,11 +2196,12 @@ class HaEncodingFixer extends HTMLElement {
       this._integrationHint = '';
       return result;
     } catch (err) {
-      if (opts.fallbackAllowed && this._isIntegrationMissingError(err)) {
+      if (opts.fallbackAllowed && (this._isIntegrationMissingError(err) || this._isUnauthorizedError(err))) {
         this._integrationAvailable = false;
+        const unauthorized = this._isUnauthorizedError(err);
         this._integrationHint = this._lang === 'pl'
-          ? 'Integracja Encoding Fixer nie jest jeszcze skonfigurowana. Uzywam trybu legacy z ograniczeniami.'
-          : 'Encoding Fixer integration is not configured yet. Using limited legacy fallback mode.';
+          ? (unauthorized ? 'Skan plikow wymaga administratora. Uzywam ograniczonego skanu encji.' : 'Integracja Encoding Fixer nie jest jeszcze skonfigurowana. Uzywam trybu legacy z ograniczeniami.')
+          : (unauthorized ? 'File scanning requires an administrator. Using the limited entity-state scan.' : 'Encoding Fixer integration is not configured yet. Using limited legacy fallback mode.');
         this._updateUI();
         return null;
       }

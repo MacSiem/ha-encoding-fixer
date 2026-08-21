@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.0.11 (2026-08-21)
+
+- Compatibility: raised the Home Assistant floor to 2024.7 for the static-path API used by the integration.
+- Permissions/docs: documented that integration-backed scans expose YAML and require an administrator; unauthorized scans now fall back to the limited legacy entity-state mode.
+- Consistency: refreshed the legacy root card from the packaged build and moved its startup filesystem stat off the event loop.
+
 ## 5.0.10 (2026-08-20)
 
 - Security: the scan WebSocket command now requires a Home Assistant administrator because its results can include before/after lines from YAML configuration files.

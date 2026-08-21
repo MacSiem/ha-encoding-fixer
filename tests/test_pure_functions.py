@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import ast
 import importlib.util
+import json
 import sys
 import unittest
 from datetime import datetime, timezone
@@ -118,6 +119,36 @@ class AuthorizationRegressionTests(unittest.TestCase):
         decorators = {ast.unparse(decorator) for decorator in scan.decorator_list}
 
         self.assertIn("websocket_api.require_admin", decorators)
+
+    def test_unauthorized_scan_can_use_documented_limited_fallback(self) -> None:
+        card = (
+            ROOT
+            / "custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js"
+        ).read_text()
+
+        self.assertIn(
+            "opts.fallbackAllowed && (this._isIntegrationMissingError(err) || this._isUnauthorizedError(err))",
+            card,
+        )
+
+    def test_floor_docs_and_legacy_card_match_shipped_build(self) -> None:
+        hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
+        readme = (ROOT / "README.md").read_text(encoding="utf-8")
+        packaged = (
+            ROOT
+            / "custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js"
+        ).read_bytes()
+
+        self.assertEqual(hacs["homeassistant"], "2024.7.0")
+        self.assertNotIn("Read-only actions work for everyone", readme)
+        self.assertNotIn("No, not to look", readme)
+        self.assertEqual((ROOT / "ha-encoding-fixer.js").read_bytes(), packaged)
+
+    def test_frontend_card_stat_runs_off_event_loop(self) -> None:
+        init_source = (ROOT / "custom_components/ha_encoding_fixer/__init__.py").read_text()
+        self.assertIn(
+            "await hass.async_add_executor_job(card_path.is_file)", init_source
+        )
 
 
 if __name__ == "__main__":

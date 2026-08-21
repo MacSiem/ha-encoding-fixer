@@ -6,7 +6,7 @@ Find and fix UTF-8/mojibake text (`Åazienka` → `Łazienka`, `KÃ¼che` → `K
 across Home Assistant — entity registry friendly names, live state
 `friendly_name` attributes, and your `.yaml`/`.yml` config files.
 
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.4+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-encoding-fixer)](https://github.com/MacSiem/ha-encoding-fixer/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.7+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-encoding-fixer)](https://github.com/MacSiem/ha-encoding-fixer/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
@@ -28,18 +28,17 @@ Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
    still current, backs up every touched file before writing, writes, then
    reads the file back to verify the bytes match — restoring the backup
    automatically if verification fails.
-4. **Read-only actions work for everyone; writes need an admin.** Any signed-in
-   user can scan and list existing backups. Previewing a dry run and applying
-   a fix or restore write to your config directory, so they require a Home
-   Assistant administrator account.
+4. **YAML inspection and writes require an admin.** Integration-backed scans,
+   previews, fixes, backup listing, and restores can expose or change files in
+   the Home Assistant config directory, so they require an administrator.
+   Non-admin users can still use the card's limited legacy entity-state scan.
 
 ### What is automatic vs. manual
 
-| Read-only — open to any signed-in user | Writes — Home Assistant admin required |
+| Limited fallback — signed-in user | Integration API — Home Assistant admin required |
 |---|---|
-| Card JS registration (no resource entry) | Previewing a dry-run change list |
-| Scanning entity registry + states + YAML files | Applying a fix (backs up, writes, then verifies) |
-| Listing existing timestamped backups | Restoring a backup directory (backs up, then verifies) |
+| Card JS registration (no resource entry) | Scanning entity registry, states, and YAML files |
+| Legacy entity-state scan | Previewing/applying a fix and listing/restoring backups |
 
 ## Screenshots
 
@@ -134,10 +133,10 @@ files.
 ## FAQ
 
 **Do I need to be an admin to use this?**
-No, not to look. Any signed-in user can scan for mojibake and see the change
-list on screen, and list existing backups. Previewing a dry-run diff,
-applying a fix, and restoring a backup all write to your config directory,
-so they require an administrator account.
+Yes for every integration-backed scan or backup operation, because results can
+contain Home Assistant YAML content. A non-admin can use only the limited
+legacy entity-state scan; previews, fixes, backup listing, and restores remain
+administrator-only.
 
 **What if a fix goes wrong?**
 Every write is preceded by a timestamped backup, and every write is verified
