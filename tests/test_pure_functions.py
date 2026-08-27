@@ -120,6 +120,19 @@ class AuthorizationRegressionTests(unittest.TestCase):
 
         self.assertIn("websocket_api.require_admin", decorators)
 
+    def test_list_backups_websocket_command_requires_admin(self) -> None:
+        source = (ROOT / "custom_components/ha_encoding_fixer/websocket_api.py").read_text()
+        tree = ast.parse(source)
+        list_backups = next(
+            node
+            for node in tree.body
+            if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+            and node.name == "_ws_list_backups"
+        )
+        decorators = {ast.unparse(decorator) for decorator in list_backups.decorator_list}
+
+        self.assertIn("websocket_api.require_admin", decorators)
+
     def test_unauthorized_scan_can_use_documented_limited_fallback(self) -> None:
         card = (
             ROOT

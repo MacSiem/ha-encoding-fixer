@@ -1,4 +1,4 @@
-/* HA Tools split — ha-encoding-fixer v5.0.11 (2026-08-21) — single-tool standalone repo */
+/* HA Tools split — ha-encoding-fixer v5.0.12 (2026-08-27) — single-tool standalone repo */
 (function() {
 'use strict';
 
@@ -2188,6 +2188,12 @@ class HaEncodingFixer extends HTMLElement {
       : 'Admin permissions required to apply fixes';
   }
 
+  _backupAdminRequiredMsg() {
+    return this._lang === 'pl'
+      ? 'Metadane backupow serwera sa dostepne tylko dla administratorow Home Assistant.'
+      : 'Server backup metadata is available to Home Assistant administrators only.';
+  }
+
   async _callEncodingFixerWS(payload, opts = {}) {
     if (!this._hass?.callWS) throw new Error('Home Assistant WebSocket API unavailable');
     try {
@@ -3194,6 +3200,7 @@ class HaEncodingFixer extends HTMLElement {
   _buildRestoreTab() {
     const t = this._t;
     const isLive = this._restoreSource === 'live';
+    const isAdmin = this._hass?.user?.is_admin === true;
     const backupRows = (this._serverBackups || []).map(backup => `
       <div class="backup-row">
         <div class="backup-id">${this._escapeHtml(backup.backup_id)}</div>
@@ -3201,7 +3208,7 @@ class HaEncodingFixer extends HTMLElement {
         <button class="btn btn-sm btn-primary" data-restore-backup="${this._escapeHtml(backup.backup_id)}">${this._lang === 'pl' ? 'Przywroc' : 'Restore'}</button>
       </div>
     `).join('');
-    const serverRestore = `
+    const serverRestore = isAdmin ? `
       <div class="section">
         <h3>${this._lang === 'pl' ? 'Backupi serwerowe' : 'Server backups'}</h3>
         <p class="section-desc">${this._lang === 'pl'
@@ -3212,7 +3219,7 @@ class HaEncodingFixer extends HTMLElement {
         </div>
         ${backupRows ? `<div class="backup-list">${backupRows}</div>` : `<div class="empty-state">${this._lang === 'pl' ? 'Brak zaladowanych backupow' : 'No backups loaded'}</div>`}
       </div>
-    `;
+    ` : `<div class="section info-section">${this._escapeHtml(this._backupAdminRequiredMsg())}</div>`;
 
     // Source toggle
     const KNOWN_PATHS = [
@@ -3429,16 +3436,27 @@ class HaEncodingFixer extends HTMLElement {
 
   async _loadServerBackups() {
     if (!this._hass || this._backupsLoading) return;
+    if (this._hass.user?.is_admin !== true) {
+      this._serverBackups = [];
+      this._showToast(this._backupAdminRequiredMsg(), 'info');
+      this._updateUI();
+      return;
+    }
     this._backupsLoading = true;
     this._updateUI();
     try {
-      const result = await this._callEncodingFixerWS({ type: 'ha_encoding_fixer/list_backups' }, { fallbackAllowed: true });
+      const result = await this._callEncodingFixerWS({ type: 'ha_encoding_fixer/list_backups' });
       if (!result) return;
       this._serverBackups = result.backups || [];
       this._showToast((this._lang === 'pl' ? 'Zaladowano backupy: ' : 'Loaded backups: ') + this._serverBackups.length, 'success');
     } catch (err) {
       console.warn('[Encoding Fixer] list backups error:', err);
-      this._showToast((this._lang === 'pl' ? 'Blad listy backupow: ' : 'Backup list error: ') + (err.message || err), 'error');
+      if (this._isUnauthorizedError(err)) {
+        this._serverBackups = [];
+        this._showToast(this._backupAdminRequiredMsg(), 'info');
+      } else {
+        this._showToast((this._lang === 'pl' ? 'Blad listy backupow: ' : 'Backup list error: ') + (err.message || err), 'error');
+      }
     } finally {
       this._backupsLoading = false;
       this._updateUI();
@@ -3447,6 +3465,10 @@ class HaEncodingFixer extends HTMLElement {
 
   async _restoreServerBackup(backupId) {
     if (!this._hass || !backupId) return;
+    if (this._hass.user?.is_admin !== true) {
+      this._showToast(this._backupAdminRequiredMsg(), 'info');
+      return;
+    }
     const msg = this._lang === 'pl'
       ? 'Przywrocic backup ' + backupId + '?\nAktualne pliki tez zostana najpierw zbackupowane.'
       : 'Restore backup ' + backupId + '?\nCurrent files will be backed up first.';

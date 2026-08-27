@@ -24,11 +24,11 @@ function tagsIn(code) {
   return [...code.matchAll(/customElements\.define\(\s*['"]([a-z0-9-]+)['"]/g)]
     .map(m => m[1]).filter(t => !/editor$/.test(t));
 }
-function mockHass() {
+function mockHass(isAdmin = true) {
   return {
     states: {}, themes: { darkMode: false, themes: {} }, language: 'en',
     locale: { language: 'en', number_format: 'language', time_format: '24' },
-    user: { id: 'u', name: 'Demo', is_admin: true, is_owner: true },
+    user: { id: 'u', name: 'Demo', is_admin: isAdmin, is_owner: isAdmin },
     config: { unit_system: { temperature: 'C' }, version: '2025.6.0' },
     callApi: () => Promise.resolve({}), callService: () => Promise.resolve({}),
     callWS: () => Promise.resolve([]), sendWS: () => Promise.resolve([]),
@@ -84,6 +84,27 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
       if (!el.shadowRoot) problem = 'no shadowRoot';
       else if (len < 50) problem = 'empty render (len=' + len + ')';
       else if (asyncErr) problem = 'async error: ' + asyncErr;
+      else if (typeof el._buildRestoreTab === 'function') {
+        el._activeTab = 'lovelace';
+        el.hass = mockHass(true);
+        if (typeof el._updateUI === 'function') el._updateUI();
+        await delay(20);
+        if (!el.shadowRoot.querySelector('[data-action="list-backups"]')) {
+          problem = 'admin cannot access server backup metadata';
+        } else {
+          el.hass = mockHass(false);
+          if (typeof el._updateUI === 'function') el._updateUI();
+          await delay(20);
+          const html = el.shadowRoot.innerHTML;
+          if (el.shadowRoot.querySelector('[data-action="list-backups"]')) {
+            problem = 'non-admin can request server backup metadata';
+          } else if (el.shadowRoot.querySelector('[data-restore-backup]')) {
+            problem = 'non-admin can request a server backup restore';
+          } else if (!/administrators only/i.test(html)) {
+            problem = 'non-admin backup section lacks an administrator-only explanation';
+          }
+        }
+      }
       window.close();
     } catch (e) { problem = (e && e.message) ? e.message : String(e); }
     if (problem) fail.push(`${t.tag}  (${path.basename(t.file)})  -> ${problem}`); else pass++;

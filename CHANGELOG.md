@@ -1,5 +1,11 @@
 # Changelog
 
+## 5.0.12 (2026-08-27)
+
+- Security: restricted server-backup metadata and restore controls to Home Assistant administrators; backup responses include identifiers and relative configuration-file paths.
+- UX: non-admin users keep the limited entity-state workflow and now see a focused administrator-only explanation instead of a misleading integration fallback.
+- Tests: added backend authorization and admin/non-admin runtime rendering regressions while preserving byte-identical root and packaged cards.
+
 ## 5.0.11 (2026-08-21)
 
 - Compatibility: raised the Home Assistant floor to 2024.7 for the static-path API used by the integration.

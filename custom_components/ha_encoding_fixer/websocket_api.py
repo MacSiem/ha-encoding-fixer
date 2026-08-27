@@ -402,8 +402,7 @@ async def _ws_fix(
 
 
 @websocket_api.websocket_command({vol.Required("type"): f"{DOMAIN}/list_backups"})
-# Read-only: open to every logged-in user so the card renders for non-admins.
-# fix/restore stay admin-only — they write files on disk.
+@websocket_api.require_admin
 @websocket_api.async_response
 async def _ws_list_backups(
     hass: HomeAssistant,
