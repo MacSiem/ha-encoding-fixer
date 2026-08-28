@@ -1,5 +1,14 @@
 # Changelog
 
+## 5.0.13 (2026-08-28)
+
+- Isolation: Bento CSS is component-local in both frontend copies and cannot be captured from `window.HAToolsBentoCSS` by load order.
+- Isolation: persistence is now card-local, removing `window._haToolsPersistence` load-order coupling while retaining existing localStorage keys.
+- Isolation: removed the document-wide sibling-card injector and all shared global escape-helper references.
+- Security: retained local String-before-escape helpers in byte-identical root and packaged cards.
+- Tests: prevent future cross-card DOM mutation and global helper coupling.
+- UX: restored the donate footer within the Encoding Fixer card's own shadow root.
+
 ## 5.0.12 (2026-08-27)
 
 - Security: restricted server-backup metadata and restore controls to Home Assistant administrators; backup responses include identifiers and relative configuration-file paths.

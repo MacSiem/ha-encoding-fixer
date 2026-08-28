@@ -163,6 +163,20 @@ class AuthorizationRegressionTests(unittest.TestCase):
             "await hass.async_add_executor_job(card_path.is_file)", init_source
         )
 
+    def test_distributed_cards_do_not_install_cross_card_injectors(self) -> None:
+        for card_path in (
+            ROOT / "ha-encoding-fixer.js",
+            ROOT / "custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js",
+        ):
+            source = card_path.read_text(encoding="utf-8")
+            self.assertIn("const _esc = (s) => _escBase(_asText(s));", source)
+            self.assertIn('data-source="own-card"', source)
+            self.assertIn("buymeacoffee.com/macsiem", source)
+            self.assertIn("this.shadowRoot.innerHTML = html + ownDonateFooter();", source)
+            for marker in ("SPLIT_TAGS", "deepFindAll", "injectAll", "__haToolsSplitDonateInjector", "window._haToolsEsc"):
+                with self.subTest(card=card_path.name, marker=marker):
+                    self.assertNotIn(marker, source)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,0 +1,24 @@
+"""Regression coverage for component-local persistence isolation."""
+from pathlib import Path
+import unittest
+
+
+ROOT = Path(__file__).resolve().parents[1]
+SOURCES = (
+    "ha-encoding-fixer.js",
+    "custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js",
+)
+
+
+class PersistenceIsolationTest(unittest.TestCase):
+    def test_persistence_never_uses_a_window_singleton(self):
+        for relative_path in SOURCES:
+            with self.subTest(path=relative_path):
+                source = (ROOT / relative_path).read_text(encoding="utf-8")
+                self.assertNotIn("window._haToolsPersistence", source)
+                self.assertNotIn("full impl in ha-tools-panel", source)
+                self.assertIn("haToolsPersistence", source)
+
+
+if __name__ == "__main__":
+    unittest.main()

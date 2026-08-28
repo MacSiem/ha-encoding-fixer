@@ -52,14 +52,22 @@ function stub(window) {
   const store = () => { let m = {}; return { getItem: k => (k in m ? m[k] : null), setItem: (k, v) => { m[k] = String(v); }, removeItem: k => { delete m[k]; }, clear: () => { m = {}; }, key: () => null, get length() { return Object.keys(m).length; } }; };
   try { Object.defineProperty(window, 'localStorage', { configurable: true, value: store() }); } catch (e) {}
   try { Object.defineProperty(window, 'sessionStorage', { configurable: true, value: store() }); } catch (e) {}
+  // A stale incompatible singleton must not affect this card's local persistence.
+  window._haToolsPersistence = new Proxy({}, { get() { throw new Error('unexpected global persistence access'); } });
 }
 const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
 (async () => {
   const files = listCardFiles();
+  const forbiddenPersistence = 'window._haToolsPersistence';
+  if (files.some(f => fs.readFileSync(f, 'utf8').includes(forbiddenPersistence))) {
+    console.error('smoke: residual global persistence singleton');
+    process.exit(1);
+  }
   const targets = [];
   for (const f of files) {
     const code = fs.readFileSync(f, 'utf8');
+    if (code.includes('window.HAToolsBentoCSS')) { console.error('smoke: residual global Bento CSS singleton'); process.exit(1); }
     for (const t of tagsIn(code)) targets.push({ file: f, tag: t });
   }
   if (!targets.length) { console.log('smoke: no custom elements found — skipping'); process.exit(0); }
@@ -70,6 +78,7 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
       const dom = new JSDOM('<!DOCTYPE html><html><head></head><body></body></html>', { runScripts: 'dangerously', pretendToBeVisual: true, url: 'http://localhost/' });
       const { window } = dom;
       stub(window);
+      window.HAToolsBentoCSS = '/* poisoned-ha-tools-bento-css */';
       let asyncErr = null;
       window.addEventListener('error', e => { asyncErr = asyncErr || (e.error && e.error.message) || e.message; });
       window.onerror = (m) => { asyncErr = asyncErr || m; };
@@ -83,6 +92,7 @@ const delay = (ms) => new Promise(r => setTimeout(r, ms));
       const len = el.shadowRoot ? el.shadowRoot.innerHTML.length : 0;
       if (!el.shadowRoot) problem = 'no shadowRoot';
       else if (len < 50) problem = 'empty render (len=' + len + ')';
+      else if (el.shadowRoot.innerHTML.includes('poisoned-ha-tools-bento-css')) problem = 'pre-seeded global Bento CSS overrode component-local CSS';
       else if (asyncErr) problem = 'async error: ' + asyncErr;
       else if (typeof el._buildRestoreTab === 'function') {
         el._activeTab = 'lovelace';
