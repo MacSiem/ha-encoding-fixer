@@ -1,13 +1,20 @@
 name: validate
 on: [push, pull_request]
+permissions:
+  contents: read
 jobs:
   check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
           node-version: '22'
+          cache: npm
+      - name: Install locked JavaScript dependencies
+        run: npm ci
       - name: JS syntax (node --check)
         run: |
           fail=0
@@ -32,7 +39,8 @@ jobs:
           done
           echo "a11y check done"
       - name: Runtime smoke (jsdom render)
-        run: |
-          npm init -y >/dev/null 2>&1
-          npm install jsdom >/dev/null 2>&1
-          node .github/smoke.cjs
+        run: npm run test:smoke
+      - name: Security and integration-only contracts
+        run: npm run test:security
+      - name: Root/shipped bundle parity
+        run: cmp -s ha-encoding-fixer.js custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js

@@ -15,11 +15,12 @@ from .const import (
     CARD_PACKAGE_DIR,
     CARD_URL_PATH,
     DATA_FRONTEND_REGISTERED,
+    DATA_WORKFLOW,
     DATA_WS_REGISTERED,
     DOMAIN,
     VERSION,
 )
-from .websocket_api import async_register_commands
+from .websocket_api import EncodingFixerWorkflow, async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -28,6 +29,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Encoding Fixer from a config entry."""
     bucket = hass.data.setdefault(DOMAIN, {})
     bucket[entry.entry_id] = {}
+    if DATA_WORKFLOW not in bucket:
+        bucket[DATA_WORKFLOW] = EncodingFixerWorkflow(hass)
 
     if not bucket.get(DATA_WS_REGISTERED):
         async_register_commands(hass)
@@ -42,6 +45,25 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload the config entry."""
     bucket = hass.data.get(DOMAIN, {})
     bucket.pop(entry.entry_id, None)
+    loaded_entry_ids = {
+        key
+        for key in bucket
+        if key
+        not in {
+            DATA_FRONTEND_REGISTERED,
+            DATA_WS_REGISTERED,
+            DATA_WORKFLOW,
+        }
+    }
+    if not loaded_entry_ids:
+        # WebSocket command registration is process-wide and intentionally
+        # remains deduplicated. Close first so already captured handlers drain
+        # before a later setup can create a workflow with an independent lock.
+        service = bucket.get(DATA_WORKFLOW)
+        if isinstance(service, EncodingFixerWorkflow):
+            await service.async_close()
+        if bucket.get(DATA_WORKFLOW) is service:
+            bucket.pop(DATA_WORKFLOW, None)
     _LOGGER.debug("HA Encoding Fixer unloaded (entry_id=%s)", entry.entry_id)
     return True
 

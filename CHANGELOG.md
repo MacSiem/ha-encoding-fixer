@@ -1,5 +1,17 @@
 # Changelog
 
+## 6.0.0 (2026-09-01)
+
+- Security: replaced arbitrary recursive configuration scans with a fixed logical target allowlist and symlink/traversal-resistant file access.
+- Privacy: previews and backup lists no longer expose YAML lines, raw file paths, entity IDs, entity names or backup paths to the browser.
+- Reliability: added source-bound previews, exact change IDs, Home Assistant YAML validation, backup-before-write, atomic fsync/readback verification, complete rollback and cancellation-safe mixed file/entity transactions.
+- Authorization: removed token, REST, shell-command, direct entity-registry and reduced-permission browser fallbacks; every backend command is administrator-only.
+- Lifecycle: unloading the final config entry now blocks new work, drains in-flight operations and removes the privileged workflow authority before a new workflow can be created.
+- Policy parity: restore now applies the same package-directory and `secrets.yaml` exclusions as scanning.
+- Backup privacy: backup directories are created with owner-only permissions (`0700`); their contents still require configuration-equivalent host protection.
+- UX: rebuilt the card around explicit target selection, redacted review, write confirmation, truthful partial/error states and confirmed restore; increased typography, line height, spacing and mobile affordances for legibility.
+- Supply chain: pinned CI actions, disabled persisted checkout credentials and added locked security/parity checks.
+
 ## 5.0.13 (2026-08-28)
 
 - Isolation: Bento CSS is component-local in both frontend copies and cannot be captured from `window.HAToolsBentoCSS` by load order.

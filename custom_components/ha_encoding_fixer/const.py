@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 DOMAIN = "ha_encoding_fixer"
-VERSION = "5.0.13"
+VERSION = "6.0.0"
 
 DATA_FRONTEND_REGISTERED = "_frontend_registered"
 DATA_WS_REGISTERED = "_ws_registered"
+DATA_WORKFLOW = "_workflow"
 
 CARD_FILENAME = "ha-encoding-fixer-card.js"
 CARD_PACKAGE_DIR = "www"

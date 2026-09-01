@@ -107,18 +107,23 @@ class DiffBuilderTests(unittest.TestCase):
 
 
 class AuthorizationRegressionTests(unittest.TestCase):
-    def test_scan_websocket_command_requires_admin(self) -> None:
+    def test_every_websocket_command_requires_admin(self) -> None:
         source = (ROOT / "custom_components/ha_encoding_fixer/websocket_api.py").read_text()
         tree = ast.parse(source)
-        scan = next(
+        handlers = [
             node
             for node in tree.body
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
-            and node.name == "_ws_scan"
+            and node.name.startswith("_ws_")
+        ]
+        self.assertEqual(
+            {node.name for node in handlers},
+            {"_ws_targets", "_ws_preview", "_ws_apply", "_ws_list_backups", "_ws_restore"},
         )
-        decorators = {ast.unparse(decorator) for decorator in scan.decorator_list}
-
-        self.assertIn("websocket_api.require_admin", decorators)
+        for handler in handlers:
+            decorators = {ast.unparse(item) for item in handler.decorator_list}
+            with self.subTest(handler=handler.name):
+                self.assertIn("websocket_api.require_admin", decorators)
 
     def test_list_backups_websocket_command_requires_admin(self) -> None:
         source = (ROOT / "custom_components/ha_encoding_fixer/websocket_api.py").read_text()
@@ -133,16 +138,22 @@ class AuthorizationRegressionTests(unittest.TestCase):
 
         self.assertIn("websocket_api.require_admin", decorators)
 
-    def test_unauthorized_scan_can_use_documented_limited_fallback(self) -> None:
+    def test_card_has_no_legacy_or_direct_privileged_fallback(self) -> None:
         card = (
             ROOT
             / "custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js"
         ).read_text()
 
-        self.assertIn(
-            "opts.fallbackAllowed && (this._isIntegrationMissingError(err) || this._isUnauthorizedError(err))",
-            card,
-        )
+        for forbidden in (
+            "accessToken",
+            "Bearer",
+            "/api/config",
+            "config/entity_registry/update",
+            "shell_command",
+            "limited legacy",
+        ):
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, card)
 
     def test_floor_docs_and_legacy_card_match_shipped_build(self) -> None:
         hacs = json.loads((ROOT / "hacs.json").read_text(encoding="utf-8"))
@@ -172,7 +183,8 @@ class AuthorizationRegressionTests(unittest.TestCase):
             self.assertIn("const _esc = (s) => _escBase(_asText(s));", source)
             self.assertIn('data-source="own-card"', source)
             self.assertIn("buymeacoffee.com/macsiem", source)
-            self.assertIn("this.shadowRoot.innerHTML = html + ownDonateFooter();", source)
+            self.assertIn("${ownDonateFooter()}", source)
+            self.assertIn("this.shadowRoot.innerHTML = html;", source)
             for marker in ("SPLIT_TAGS", "deepFindAll", "injectAll", "__haToolsSplitDonateInjector", "window._haToolsEsc"):
                 with self.subTest(card=card_path.name, marker=marker):
                     self.assertNotIn(marker, source)

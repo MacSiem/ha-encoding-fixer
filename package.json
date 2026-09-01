@@ -3,7 +3,8 @@
   "private": true,
   "version": "0.0.0",
   "scripts": {
-    "test:smoke": "node .github/smoke.cjs"
+    "test:smoke": "node .github/smoke.cjs",
+    "test:security": "node tests/encoding-card-workflow.test.mjs"
   },
   "devDependencies": {
     "jsdom": "26.1.0"
