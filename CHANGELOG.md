@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Show the one-line support link only to administrators, with `show_support: false` and a remembered dismiss action.
 - First run: register the bundled card as one Lovelace resource in storage mode and an administrator-only sidebar panel. Keep an existing HACS card resource, update the owned resource on upgrade, and remove owned UI entries on unload.
 - Compatibility: require Home Assistant 2025.2 for the Lovelace resource and panel APIs; YAML-mode dashboards keep the frontend fallback.
 

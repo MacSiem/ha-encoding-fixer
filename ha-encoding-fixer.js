@@ -8,10 +8,14 @@
     '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
   })[char]);
   const _esc = (s) => _escBase(_asText(s));
+  const SUPPORT_KEY = 'ha-encoding-fixer-support-dismissed';
+  const supportDismissed = () => {
+    try { return window.localStorage.getItem(SUPPORT_KEY) === '1'; } catch { return false; }
+  };
   const ownDonateFooter = () => `
     <footer class="donate" data-source="own-card">
-      <span>Encoding Fixer is local-first and has no telemetry.</span>
       <a href="https://buymeacoffee.com/macsiem" target="_blank" rel="noopener noreferrer">Support development</a>
+      <button type="button" data-action="dismiss-support" aria-label="Dismiss support link">×</button>
     </footer>`;
 
   const LABELS = Object.freeze({
@@ -62,7 +66,7 @@
       this._render();
     }
 
-    setConfig(config) { this._config = config || {}; }
+    setConfig(config) { this._config = config || {}; this._render(); }
     getCardSize() { return 8; }
     static getStubConfig() { return {}; }
 
@@ -112,6 +116,10 @@
           this._render();
         }
         if (action === 'clear-preview') this._clearPreview();
+        if (action === 'dismiss-support') {
+          try { window.localStorage.setItem(SUPPORT_KEY, '1'); } catch { /* optional preference */ }
+          this._render();
+        }
       });
       this.shadowRoot.addEventListener('change', (event) => {
         const input = event.target;
@@ -366,7 +374,7 @@
             <button class="primary" data-action="apply" type="button" ${!preview || !selectedCount || !this._confirmed || this._busy ? 'disabled' : ''}>${selectedCount ? `Apply ${selectedCount} selected fix${selectedCount === 1 ? '' : 'es'}` : 'Select findings to continue'}</button>
           </section>
           ${this._backupMarkup()}
-          ${ownDonateFooter()}
+          ${this._isAdmin() && this._config.show_support !== false && !supportDismissed() ? ownDonateFooter() : ''}
         </ha-card>`;
       this.shadowRoot.innerHTML = html;
     }
@@ -408,8 +416,9 @@
       .notice.success { color:var(--success-color, #16855b); background:color-mix(in srgb, var(--success-color, #16855b) 9%, transparent); }
       .notice.warning { margin:0 0 12px; color:var(--warning-color, #a65d00); background:color-mix(in srgb, var(--warning-color, #ed8b00) 9%, transparent); }
       select { width:100%; min-height:44px; padding:0 12px; color:var(--primary-text-color); background:var(--card-background-color); border:1px solid var(--divider-color); border-radius:10px; margin:14px 0 2px; }
-      .donate { display:flex; justify-content:space-between; gap:16px; padding:18px 22px; border-top:1px solid var(--divider-color); color:var(--secondary-text-color); font-size:13px; line-height:1.55; }
+      .donate { display:flex; align-items:center; justify-content:center; gap:12px; padding:8px 16px; border-top:1px solid var(--divider-color); color:var(--secondary-text-color); font-size:12px; line-height:1.4; }
       .donate a { color:var(--primary-color); font-weight:750; text-decoration:none; }
+      .donate button { width:auto; border:0; background:transparent; color:var(--secondary-text-color); cursor:pointer; padding:2px 6px; }
       .permission { padding:40px 28px; } .permission h2 { color:var(--primary-text-color); margin:14px 0 8px; } .permission p { max-width:540px; margin:auto; }
       @media (max-width:600px) {
         header,.section-title,.donate { flex-direction:column; }

@@ -105,6 +105,10 @@ reused. YAML-mode dashboards load the bundled card through Home Assistant's
 frontend registration; reload the browser after an upgrade. No manual resource
 entry is required.
 
+The optional one-line support link appears only for administrators. Set
+`show_support: false` in the card configuration to hide it; dismissing it is
+remembered in this browser.
+
 ## Backups and restore
 
 Before writing, the integration creates a timestamped backup below its own

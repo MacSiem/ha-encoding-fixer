@@ -62,6 +62,7 @@ nonAdmin.hass = {
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(nonAdminCalls, 0, 'non-admin UI must not call privileged endpoints');
 assert.match(nonAdmin.shadowRoot.textContent, /administrator/i);
+assert.equal(nonAdmin.shadowRoot.querySelector('.donate'), null);
 
 const admin = new Card();
 const calls = [];
@@ -89,6 +90,13 @@ admin.hass = {
   language: 'en',
 };
 await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(admin.shadowRoot.querySelector('.donate'), 'admin sees the optional support link');
+admin.setConfig({ show_support: false });
+assert.equal(admin.shadowRoot.querySelector('.donate'), null, 'show_support: false hides support');
+admin.setConfig({});
+admin.shadowRoot.querySelector('[data-action="dismiss-support"]').click();
+assert.equal(admin.shadowRoot.querySelector('.donate'), null, 'dismiss hides support');
+assert.equal(dom.window.localStorage.getItem('ha-encoding-fixer-support-dismissed'), '1');
 await admin._preview();
 assert.ok(calls.every((call) => call.type.startsWith('ha_encoding_fixer/')));
 assert.equal(admin._previewState.preview_id, 'preview-1');
