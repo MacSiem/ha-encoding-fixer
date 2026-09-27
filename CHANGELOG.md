@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- First run: register the bundled card as one Lovelace resource in storage mode and an administrator-only sidebar panel. Keep an existing HACS card resource, update the owned resource on upgrade, and remove owned UI entries on unload.
+- Compatibility: require Home Assistant 2025.2 for the Lovelace resource and panel APIs; YAML-mode dashboards keep the frontend fallback.
+
 ## 6.0.0 (2026-09-01)
 
 - Security: replaced arbitrary recursive configuration scans with a fixed logical target allowlist and symlink/traversal-resistant file access.

@@ -7,7 +7,7 @@ files and entity-registry names. Encoding Fixer is local-only, administrator
 only, and uses a preview → confirm → backup → validate → apply → verify
 workflow.
 
-[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2024.7+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-encoding-fixer)](https://github.com/MacSiem/ha-encoding-fixer/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+[![Home Assistant](https://img.shields.io/badge/Home%20Assistant-2025.2+-blue.svg?logo=homeassistant)](https://www.home-assistant.io/) [![Version](https://img.shields.io/github/v/release/MacSiem/ha-encoding-fixer)](https://github.com/MacSiem/ha-encoding-fixer/releases) [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 Part of the [HA Tools](https://github.com/MacSiem) ecosystem.
 
@@ -89,6 +89,7 @@ newer than these images while the security-focused workflow is being reviewed.
 2. Add `https://github.com/MacSiem/ha-encoding-fixer` as an **Integration**.
 3. Install **Encoding Fixer** and restart Home Assistant.
 4. Open Settings → Devices & services → Add integration → **Encoding Fixer**.
+5. Open **Encoding Fixer** in the sidebar as an administrator, or add the dashboard card below.
 
 ### Dashboard card
 
@@ -98,7 +99,11 @@ The integration serves and registers its bundled card. Add:
 type: custom:ha-encoding-fixer
 ```
 
-No manual Lovelace resource entry is required.
+In storage-mode dashboards, the integration registers one Lovelace resource and
+updates it on upgrade. If an existing HACS card resource is present, it is
+reused. YAML-mode dashboards load the bundled card through Home Assistant's
+frontend registration; reload the browser after an upgrade. No manual resource
+entry is required.
 
 ## Backups and restore
 

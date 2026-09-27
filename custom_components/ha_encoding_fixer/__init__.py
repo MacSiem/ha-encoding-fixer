@@ -3,22 +3,23 @@
 from __future__ import annotations
 
 import logging
-from pathlib import Path
 
-from homeassistant.components.frontend import add_extra_js_url
-from homeassistant.components.http import StaticPathConfig
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 
 from .const import (
-    CARD_FILENAME,
-    CARD_PACKAGE_DIR,
-    CARD_URL_PATH,
     DATA_FRONTEND_REGISTERED,
+    DATA_PANEL_REGISTERED,
     DATA_WORKFLOW,
     DATA_WS_REGISTERED,
     DOMAIN,
-    VERSION,
+)
+from .frontend import (
+    async_register_card,
+    async_register_panel,
+    async_register_static,
+    async_unregister_card,
+    async_unregister_panel,
 )
 from .websocket_api import EncodingFixerWorkflow, async_register_commands
 
@@ -36,7 +37,12 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         async_register_commands(hass)
         bucket[DATA_WS_REGISTERED] = True
 
-    await _async_register_frontend(hass)
+    if not bucket.get(DATA_FRONTEND_REGISTERED):
+        await async_register_static(hass)
+        await async_register_card(hass)
+        bucket[DATA_FRONTEND_REGISTERED] = True
+    if not bucket.get(DATA_PANEL_REGISTERED):
+        bucket[DATA_PANEL_REGISTERED] = await async_register_panel(hass)
     _LOGGER.debug("HA Encoding Fixer set up (entry_id=%s)", entry.entry_id)
     return True
 
@@ -51,6 +57,7 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         if key
         not in {
             DATA_FRONTEND_REGISTERED,
+            DATA_PANEL_REGISTERED,
             DATA_WS_REGISTERED,
             DATA_WORKFLOW,
         }
@@ -64,25 +71,9 @@ async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             await service.async_close()
         if bucket.get(DATA_WORKFLOW) is service:
             bucket.pop(DATA_WORKFLOW, None)
+        if bucket.pop(DATA_PANEL_REGISTERED, False):
+            async_unregister_panel(hass)
+        if bucket.pop(DATA_FRONTEND_REGISTERED, False):
+            await async_unregister_card(hass)
     _LOGGER.debug("HA Encoding Fixer unloaded (entry_id=%s)", entry.entry_id)
     return True
-
-
-async def _async_register_frontend(hass: HomeAssistant) -> None:
-    """Register the bundled Lovelace card."""
-    bucket = hass.data.setdefault(DOMAIN, {})
-    if bucket.get(DATA_FRONTEND_REGISTERED):
-        return
-
-    card_dir = Path(__file__).parent / CARD_PACKAGE_DIR
-    card_path = card_dir / CARD_FILENAME
-    if not await hass.async_add_executor_job(card_path.is_file):
-        _LOGGER.error("Bundled card file missing at %s", card_path)
-        return
-
-    await hass.http.async_register_static_paths(
-        [StaticPathConfig(f"/{DOMAIN}", str(card_dir), cache_headers=False)]
-    )
-    add_extra_js_url(hass, f"{CARD_URL_PATH}?v={VERSION}")
-    bucket[DATA_FRONTEND_REGISTERED] = True
-    _LOGGER.debug("Registered Lovelace card at %s", CARD_URL_PATH)
