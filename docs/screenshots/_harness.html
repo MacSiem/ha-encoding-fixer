@@ -96,7 +96,12 @@
     connection: { subscribeEvents: () => Promise.resolve(() => {}) },
     callWS: async (msg) => {
       const t = String((msg && msg.type) || '');
-      if (t === 'ha_encoding_fixer/scan') return scanResult;
+      if (t === 'ha_encoding_fixer/targets') return { schema_version: 1, targets: [
+        { target_id: 'configuration', available: true },
+        { target_id: 'automations', available: true },
+        { target_id: 'packages', available: true },
+        { target_id: 'entity_registry', available: true },
+      ] };
       if (t === 'ha_encoding_fixer/list_backups') return { backups };
       if (t === 'ha_encoding_fixer/fix') {
         if (msg.dry_run === false) {

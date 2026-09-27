@@ -78,8 +78,8 @@ repaired confidently are not offered as changes.
 |---|---|
 | ![Encoding Fixer light theme](docs/screenshots/card-scan-light.png) | ![Encoding Fixer dark theme](docs/screenshots/card-scan-dark.png) |
 
-The repository screenshots use synthetic demo data. The current card may look
-newer than these images while the security-focused workflow is being reviewed.
+The screenshots show the current administrator card with synthetic available
+targets. Paths, names and file contents from a real HA instance are absent.
 
 ## Installation
 
