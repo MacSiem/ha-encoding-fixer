@@ -183,7 +183,7 @@ class AuthorizationRegressionTests(unittest.TestCase):
             self.assertIn("const _esc = (s) => _escBase(_asText(s));", source)
             self.assertIn('data-source="own-card"', source)
             self.assertIn("buymeacoffee.com/macsiem", source)
-            self.assertIn("${ownDonateFooter()}", source)
+            self.assertIn("this._isAdmin() && this._config.show_support !== false && !supportDismissed() ? ownDonateFooter() : ''", source)
             self.assertIn("this.shadowRoot.innerHTML = html;", source)
             for marker in ("SPLIT_TAGS", "deepFindAll", "injectAll", "__haToolsSplitDonateInjector", "window._haToolsEsc"):
                 with self.subTest(card=card_path.name, marker=marker):
