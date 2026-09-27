@@ -163,15 +163,15 @@ class AuthorizationRegressionTests(unittest.TestCase):
             / "custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js"
         ).read_bytes()
 
-        self.assertEqual(hacs["homeassistant"], "2024.7.0")
+        self.assertEqual(hacs["homeassistant"], "2025.2.0")
         self.assertNotIn("Read-only actions work for everyone", readme)
         self.assertNotIn("No, not to look", readme)
         self.assertEqual((ROOT / "ha-encoding-fixer.js").read_bytes(), packaged)
 
     def test_frontend_card_stat_runs_off_event_loop(self) -> None:
-        init_source = (ROOT / "custom_components/ha_encoding_fixer/__init__.py").read_text()
+        frontend_source = (ROOT / "custom_components/ha_encoding_fixer/frontend.py").read_text()
         self.assertIn(
-            "await hass.async_add_executor_job(card_path.is_file)", init_source
+            "await hass.async_add_executor_job((www / CARD_FILENAME).is_file)", frontend_source
         )
 
     def test_distributed_cards_do_not_install_cross_card_injectors(self) -> None:
