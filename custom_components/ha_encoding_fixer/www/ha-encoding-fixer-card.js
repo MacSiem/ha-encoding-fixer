@@ -71,10 +71,13 @@
     static getStubConfig() { return {}; }
 
     set hass(value) {
+      const hadHass = Boolean(this._hass);
+      const wasAdmin = this._isAdmin();
       const nextConnection = value?.connection || null;
       const nextUserId = value?.user?.id || null;
       const identityChanged = Boolean(this._hass) && (
-        this._connection !== nextConnection || this._userId !== nextUserId
+        this._connection !== nextConnection || this._userId !== nextUserId ||
+        wasAdmin !== Boolean(value?.user?.is_admin)
       );
       this._hass = value || null;
       if (!this._hass || identityChanged) {
@@ -91,7 +94,7 @@
       }
       this._connection = nextConnection;
       this._userId = nextUserId;
-      this._render();
+      if (!hadHass || !value || identityChanged || wasAdmin !== this._isAdmin()) this._render();
       if (this._isAdmin() && !this._initialized) {
         this._initialized = true;
         void this._initialize();

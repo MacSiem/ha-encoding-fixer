@@ -97,6 +97,19 @@ admin.setConfig({});
 admin.shadowRoot.querySelector('[data-action="dismiss-support"]').click();
 assert.equal(admin.shadowRoot.querySelector('.donate'), null, 'dismiss hides support');
 assert.equal(dom.window.localStorage.getItem('ha-encoding-fixer-support-dismissed'), '1');
+const stablePanel = admin.shadowRoot.querySelector('ha-card');
+const steadyHass = admin.hass;
+for (let index = 0; index < 30; index += 1) {
+  admin.hass = { ...steadyHass, states: { [`sensor.tick_${index}`]: { state: index } } };
+}
+assert.equal(admin.shadowRoot.querySelector('ha-card'), stablePanel, 'unrelated HA updates must preserve the rendered panel');
+assert.equal(calls.filter((call) => call.type.endsWith('/targets')).length, 1, 'unrelated HA updates must not reinitialize');
+admin.hass = { ...steadyHass, user: { id: steadyHass.user.id, is_admin: false } };
+assert.equal(admin._targets.length, 0, 'revoking admin access must clear cached targets');
+assert.match(admin.shadowRoot.textContent, /Administrator access required/);
+admin.hass = steadyHass;
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(admin._targets.length, 1, 'restored admin access must reload targets');
 await admin._preview();
 assert.ok(calls.every((call) => call.type.startsWith('ha_encoding_fixer/')));
 assert.equal(admin._previewState.preview_id, 'preview-1');
