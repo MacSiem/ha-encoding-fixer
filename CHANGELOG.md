@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 6.0.2 (2026-09-29)
 
 - Preserve the rendered card across unrelated Home Assistant state broadcasts; refresh only for identity, permission or workflow changes.
 - Show the one-line support link only to administrators, with `show_support: false` and a remembered dismiss action.
