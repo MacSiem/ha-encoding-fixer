@@ -180,4 +180,53 @@ resolveDeferredPreview({
 await pendingPreview;
 assert.equal(disconnecting._previewState, null, 'a response from the previous connection must be ignored');
 
+// Language changes must translate the current review without resetting its authorization-bound draft.
+const localized = new Card();
+const localizedCalls = [];
+const localizedConnection = {};
+const localizedHass = {
+  connection: localizedConnection,
+  user: { id: 'localized-admin', is_admin: true },
+  language: 'en',
+  callWS: async (payload) => {
+    localizedCalls.push(payload);
+    if (payload.type.endsWith('/targets')) return { targets: [{ target_id: 'configuration', available: true }] };
+    if (payload.type.endsWith('/list_backups')) return { backups: [{ backup_id: 'backup-safe', file_count: 2 }] };
+    throw { code: 'stale_preview' };
+  },
+};
+localized.hass = localizedHass;
+await new Promise((resolve) => setTimeout(resolve, 0));
+localized._previewState = { preview_id: 'draft-safe', completeness: 'partial', findings: [{ change_id: 'finding-safe', target_id: 'configuration', line: 2, kind: 'mojibake' }] };
+localized._selectedChanges = new Set(['finding-safe']);
+localized._confirmed = true;
+localized._selectedBackup = 'backup-safe';
+localized._restoreConfirmed = true;
+localized._showError({ code: 'stale_preview' });
+const draftBeforeLanguageChange = localized._previewState;
+const callsBeforeLanguageChange = localizedCalls.length;
+localized.hass = { ...localizedHass, language: 'pl-PL' };
+assert.match(localized.shadowRoot.textContent, /Wybierz dozwolone cele/);
+assert.match(localized.shadowRoot.textContent, /Sprawdź wyniki/);
+assert.match(localized.shadowRoot.textContent, /Zweryfikowane kopie zapasowe/);
+assert.match(localized.shadowRoot.textContent, /Źródło zmieniło się/);
+assert.match(localized.shadowRoot.querySelector('[data-action="apply"]').textContent, /Zastosuj/);
+assert.equal(localized.shadowRoot.querySelector('[data-action="apply"]').disabled, false);
+assert.equal(localized._previewState, draftBeforeLanguageChange, 'language change must preserve the review');
+assert.deepEqual([...localized._selectedChanges], ['finding-safe']);
+assert.equal(localized._confirmed, true);
+assert.equal(localized._selectedBackup, 'backup-safe');
+assert.equal(localized._restoreConfirmed, true);
+assert.equal(localizedCalls.length, callsBeforeLanguageChange, 'language change must not call privileged endpoints');
+assert.equal(localized.shadowRoot.querySelector('script,img'), null);
+localized.hass = { ...localizedHass, language: 'en' };
+assert.match(localized.shadowRoot.textContent, /Choose allowlisted targets/);
+assert.match(localized.shadowRoot.textContent, /The source changed after preview/);
+localized.hass = { ...localizedHass, language: 'de' };
+assert.match(localized.shadowRoot.textContent, /Choose allowlisted targets/, 'unsupported languages fall back to English');
+localized.hass = { ...localizedHass, user: { id: 'localized-admin', is_admin: false }, language: 'pl' };
+assert.match(localized.shadowRoot.textContent, /Wymagane uprawnienia administratora/);
+assert.equal(localized._previewState, null, 'permission revocation still clears privileged drafts');
+assert.equal(localizedCalls.length, callsBeforeLanguageChange);
+
 console.log('encoding integration-only workflow assertions passed');
