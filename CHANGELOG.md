@@ -2,6 +2,8 @@
 
 ## 6.0.2 (2026-09-29)
 
+- Translate the complete repair and recovery workflow into Polish; switch with the Home Assistant language while preserving the current review, selections and confirmations. Other languages fall back to English.
+
 - Preserve the rendered card across unrelated Home Assistant state broadcasts; refresh only for identity, permission or workflow changes.
 - Show the one-line support link only to administrators, with `show_support: false` and a remembered dismiss action.
 - First run: register the bundled card as one Lovelace resource in storage mode and an administrator-only sidebar panel. Keep an existing HACS card resource, update the owned resource on upgrade, and remove owned UI entries on unload.
