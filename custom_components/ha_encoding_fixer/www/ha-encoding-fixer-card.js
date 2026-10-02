@@ -274,9 +274,14 @@
       if (!this._isAdmin()) return;
       try {
         const response = await this._call('list_backups', {}, epoch);
-        this._backups = Array.isArray(response?.backups) ? response.backups : [];
+        // Failed attempts can allocate an empty directory without copying any file.
+        // Keep real offline-only snapshots, but do not offer an empty allocation.
+        this._backups = Array.isArray(response?.backups)
+          ? response.backups.filter((item) => Number.isInteger(item?.file_count) && item.file_count > 0)
+          : [];
         if (this._selectedBackup && !this._backups.some((item) => item.backup_id === this._selectedBackup && item.restorable !== false)) {
           this._selectedBackup = '';
+          this._restoreConfirmed = false;
         }
         this._render();
       } catch (error) {

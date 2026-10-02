@@ -2,6 +2,8 @@
 
 ## 6.0.2 (2026-09-29)
 
+- Omit empty failed-attempt directories from the recovery selector; keep real offline-only snapshots and clear restore consent if its selected backup disappears.
+
 - Translate the complete repair and recovery workflow into Polish; switch with the Home Assistant language while preserving the current review, selections and confirmations. Other languages fall back to English.
 
 - Preserve the rendered card across unrelated Home Assistant state broadcasts; refresh only for identity, permission or workflow changes.
