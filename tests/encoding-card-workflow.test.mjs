@@ -233,4 +233,34 @@ assert.match(localized.shadowRoot.textContent, /Wymagane uprawnienia administrat
 assert.equal(localized._previewState, null, 'permission revocation still clears privileged drafts');
 assert.equal(localizedCalls.length, callsBeforeLanguageChange);
 
+// Actual native stale-preview rejection allocated an empty directory, not a file backup.
+const backupListCard = new Card();
+let listedBackups = [
+  { backup_id: '20261002-023234', file_count: 0, restorable: false },
+  { backup_id: 'verified-file-backup', file_count: 1, restorable: true },
+  { backup_id: 'registry-offline-backup', file_count: 2, restorable: false },
+];
+backupListCard.hass = {
+  user: { id: 'backup-list-admin', is_admin: true },
+  callWS: async (payload) => payload.type.endsWith('/targets')
+    ? { targets: [] } : { backups: listedBackups },
+  language: 'pl',
+};
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(backupListCard.shadowRoot.querySelector('option[value="20261002-023234"]'), null,
+  'an empty failed-attempt directory must not be offered as a backup');
+assert.ok(backupListCard.shadowRoot.querySelector('option[value="verified-file-backup"]'));
+assert.equal(backupListCard.shadowRoot.querySelector('option[value="registry-offline-backup"]').disabled, true,
+  'a real offline-only snapshot must remain visible and disabled');
+backupListCard._selectedBackup = 'verified-file-backup';
+backupListCard._restoreConfirmed = true;
+await backupListCard._loadBackups();
+assert.equal(backupListCard._selectedBackup, 'verified-file-backup');
+assert.equal(backupListCard._restoreConfirmed, true, 'refresh preserves consent for the same valid snapshot');
+listedBackups = [{ backup_id: 'verified-file-backup', file_count: 0, restorable: true }];
+await backupListCard._loadBackups();
+assert.equal(backupListCard._selectedBackup, '', 'a snapshot with no files cannot remain selected');
+assert.equal(backupListCard._restoreConfirmed, false, 'discard consent when the selected snapshot disappears');
+assert.equal(backupListCard.shadowRoot.querySelector('[data-action="restore"]').disabled, true);
+
 console.log('encoding integration-only workflow assertions passed');
