@@ -1,3 +1,7 @@
+## Unreleased
+
+- Detect administrator changes even when Home Assistant updates the existing user object. Clear reviewed findings and restore consent immediately, reject late preview replies from the previous role, and fetch fresh targets after permissions return. Ordinary language changes preserve the authorized review.
+
 # Changelog
 
 ## 6.0.2 (2026-09-29)

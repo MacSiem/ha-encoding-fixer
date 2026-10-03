@@ -123,6 +123,7 @@
       super();
       this.attachShadow({ mode: 'open' });
       this._hass = null;
+      this._admin = false;
       this._language = 'en';
       this._config = {};
       this._epoch = 0;
@@ -149,7 +150,7 @@
 
     set hass(value) {
       const hadHass = Boolean(this._hass);
-      const wasAdmin = this._isAdmin();
+      const wasAdmin = this._admin;
       const nextConnection = value?.connection || null;
       const nextUserId = value?.user?.id || null;
       const identityChanged = Boolean(this._hass) && (
@@ -160,6 +161,7 @@
       const languageChanged = this._language !== nextLanguage;
       this._language = nextLanguage;
       this._hass = value || null;
+      this._admin = this._isAdmin();
       if (!this._hass || identityChanged) {
         this._epoch += 1;
         this._initialized = false;
