@@ -1,5 +1,20 @@
 # Changelog
 
+## Unreleased
+
+- Detect administrator changes even when Home Assistant updates the existing user object. Clear reviewed findings and restore consent immediately, reject late preview replies from the previous role, and fetch fresh targets after permissions return. Ordinary language changes preserve the authorized review.
+
+## 6.0.2 (2026-09-29)
+
+- Omit empty failed-attempt directories from the recovery selector; keep real offline-only snapshots and clear restore consent if its selected backup disappears.
+
+- Translate the complete repair and recovery workflow into Polish; switch with the Home Assistant language while preserving the current review, selections and confirmations. Other languages fall back to English.
+
+- Preserve the rendered card across unrelated Home Assistant state broadcasts; refresh only for identity, permission or workflow changes.
+- Show the one-line support link only to administrators, with `show_support: false` and a remembered dismiss action.
+- First run: register the bundled card as one Lovelace resource in storage mode and an administrator-only sidebar panel. Keep an existing HACS card resource, update the owned resource on upgrade, and remove owned UI entries on unload.
+- Compatibility: require Home Assistant 2025.2 for the Lovelace resource and panel APIs; YAML-mode dashboards keep the frontend fallback.
+
 ## 6.0.0 (2026-09-01)
 
 - Security: replaced arbitrary recursive configuration scans with a fixed logical target allowlist and symlink/traversal-resistant file access.

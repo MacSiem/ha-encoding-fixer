@@ -17,7 +17,9 @@ class PersistenceIsolationTest(unittest.TestCase):
                 source = (ROOT / relative_path).read_text(encoding="utf-8")
                 self.assertNotIn("window._haToolsPersistence", source)
                 self.assertNotIn("full impl in ha-tools-panel", source)
-                self.assertNotIn("localStorage", source)
+                self.assertEqual(source.count("window.localStorage"), 2)
+                self.assertIn("window.localStorage.getItem(SUPPORT_KEY)", source)
+                self.assertIn("window.localStorage.setItem(SUPPORT_KEY, '1')", source)
                 self.assertNotIn("sessionStorage", source)
 
     def test_unload_removes_privileged_workflow_authority(self):

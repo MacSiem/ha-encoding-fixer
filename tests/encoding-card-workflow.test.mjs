@@ -62,6 +62,7 @@ nonAdmin.hass = {
 await new Promise((resolve) => setTimeout(resolve, 0));
 assert.equal(nonAdminCalls, 0, 'non-admin UI must not call privileged endpoints');
 assert.match(nonAdmin.shadowRoot.textContent, /administrator/i);
+assert.equal(nonAdmin.shadowRoot.querySelector('.donate'), null);
 
 const admin = new Card();
 const calls = [];
@@ -89,6 +90,26 @@ admin.hass = {
   language: 'en',
 };
 await new Promise((resolve) => setTimeout(resolve, 0));
+assert.ok(admin.shadowRoot.querySelector('.donate'), 'admin sees the optional support link');
+admin.setConfig({ show_support: false });
+assert.equal(admin.shadowRoot.querySelector('.donate'), null, 'show_support: false hides support');
+admin.setConfig({});
+admin.shadowRoot.querySelector('[data-action="dismiss-support"]').click();
+assert.equal(admin.shadowRoot.querySelector('.donate'), null, 'dismiss hides support');
+assert.equal(dom.window.localStorage.getItem('ha-encoding-fixer-support-dismissed'), '1');
+const stablePanel = admin.shadowRoot.querySelector('ha-card');
+const steadyHass = admin.hass;
+for (let index = 0; index < 30; index += 1) {
+  admin.hass = { ...steadyHass, states: { [`sensor.tick_${index}`]: { state: index } } };
+}
+assert.equal(admin.shadowRoot.querySelector('ha-card'), stablePanel, 'unrelated HA updates must preserve the rendered panel');
+assert.equal(calls.filter((call) => call.type.endsWith('/targets')).length, 1, 'unrelated HA updates must not reinitialize');
+admin.hass = { ...steadyHass, user: { id: steadyHass.user.id, is_admin: false } };
+assert.equal(admin._targets.length, 0, 'revoking admin access must clear cached targets');
+assert.match(admin.shadowRoot.textContent, /Administrator access required/);
+admin.hass = steadyHass;
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(admin._targets.length, 1, 'restored admin access must reload targets');
 await admin._preview();
 assert.ok(calls.every((call) => call.type.startsWith('ha_encoding_fixer/')));
 assert.equal(admin._previewState.preview_id, 'preview-1');
@@ -158,5 +179,88 @@ resolveDeferredPreview({
 });
 await pendingPreview;
 assert.equal(disconnecting._previewState, null, 'a response from the previous connection must be ignored');
+
+// Language changes must translate the current review without resetting its authorization-bound draft.
+const localized = new Card();
+const localizedCalls = [];
+const localizedConnection = {};
+const localizedHass = {
+  connection: localizedConnection,
+  user: { id: 'localized-admin', is_admin: true },
+  language: 'en',
+  callWS: async (payload) => {
+    localizedCalls.push(payload);
+    if (payload.type.endsWith('/targets')) return { targets: [{ target_id: 'configuration', available: true }] };
+    if (payload.type.endsWith('/list_backups')) return { backups: [{ backup_id: 'backup-safe', file_count: 2 }] };
+    throw { code: 'stale_preview' };
+  },
+};
+localized.hass = localizedHass;
+await new Promise((resolve) => setTimeout(resolve, 0));
+localized._previewState = { preview_id: 'draft-safe', completeness: 'partial', findings: [{ change_id: 'finding-safe', target_id: 'configuration', line: 2, kind: 'mojibake' }] };
+localized._selectedChanges = new Set(['finding-safe']);
+localized._confirmed = true;
+localized._selectedBackup = 'backup-safe';
+localized._restoreConfirmed = true;
+localized._showError({ code: 'stale_preview' });
+const draftBeforeLanguageChange = localized._previewState;
+const callsBeforeLanguageChange = localizedCalls.length;
+localized.hass = { ...localizedHass, language: 'pl-PL' };
+assert.match(localized.shadowRoot.textContent, /Wybierz dozwolone cele/);
+assert.match(localized.shadowRoot.textContent, /Sprawdź wyniki/);
+assert.match(localized.shadowRoot.textContent, /Zweryfikowane kopie zapasowe/);
+assert.match(localized.shadowRoot.textContent, /Źródło zmieniło się/);
+assert.match(localized.shadowRoot.querySelector('[data-action="apply"]').textContent, /Zastosuj/);
+assert.equal(localized.shadowRoot.querySelector('[data-action="apply"]').disabled, false);
+assert.equal(localized._previewState, draftBeforeLanguageChange, 'language change must preserve the review');
+assert.deepEqual([...localized._selectedChanges], ['finding-safe']);
+assert.equal(localized._confirmed, true);
+assert.equal(localized._selectedBackup, 'backup-safe');
+assert.equal(localized._restoreConfirmed, true);
+assert.equal(localizedCalls.length, callsBeforeLanguageChange, 'language change must not call privileged endpoints');
+assert.equal(localized.shadowRoot.querySelector('script,img'), null);
+localized._setNotice('success', 'Applied and verified targets: {count}. Backup: {backup}.', { count: 2, backup: '<img src=x onerror=alert(1)>' });
+assert.match(localized.shadowRoot.querySelector('[role="status"]').textContent, /Zastosowane i zweryfikowane cele: 2/);
+assert.equal(localized.shadowRoot.querySelector('script,img'), null, 'translated notice parameters must stay escaped');
+localized._showError({ code: 'stale_preview' });
+localized.hass = { ...localizedHass, language: 'en' };
+assert.match(localized.shadowRoot.textContent, /Choose allowlisted targets/);
+assert.match(localized.shadowRoot.textContent, /The source changed after preview/);
+localized.hass = { ...localizedHass, language: 'de' };
+assert.match(localized.shadowRoot.textContent, /Choose allowlisted targets/, 'unsupported languages fall back to English');
+localized.hass = { ...localizedHass, user: { id: 'localized-admin', is_admin: false }, language: 'pl' };
+assert.match(localized.shadowRoot.textContent, /Wymagane uprawnienia administratora/);
+assert.equal(localized._previewState, null, 'permission revocation still clears privileged drafts');
+assert.equal(localizedCalls.length, callsBeforeLanguageChange);
+
+// Actual native stale-preview rejection allocated an empty directory, not a file backup.
+const backupListCard = new Card();
+let listedBackups = [
+  { backup_id: '20261002-023234', file_count: 0, restorable: false },
+  { backup_id: 'verified-file-backup', file_count: 1, restorable: true },
+  { backup_id: 'registry-offline-backup', file_count: 2, restorable: false },
+];
+backupListCard.hass = {
+  user: { id: 'backup-list-admin', is_admin: true },
+  callWS: async (payload) => payload.type.endsWith('/targets')
+    ? { targets: [] } : { backups: listedBackups },
+  language: 'pl',
+};
+await new Promise((resolve) => setTimeout(resolve, 0));
+assert.equal(backupListCard.shadowRoot.querySelector('option[value="20261002-023234"]'), null,
+  'an empty failed-attempt directory must not be offered as a backup');
+assert.ok(backupListCard.shadowRoot.querySelector('option[value="verified-file-backup"]'));
+assert.equal(backupListCard.shadowRoot.querySelector('option[value="registry-offline-backup"]').disabled, true,
+  'a real offline-only snapshot must remain visible and disabled');
+backupListCard._selectedBackup = 'verified-file-backup';
+backupListCard._restoreConfirmed = true;
+await backupListCard._loadBackups();
+assert.equal(backupListCard._selectedBackup, 'verified-file-backup');
+assert.equal(backupListCard._restoreConfirmed, true, 'refresh preserves consent for the same valid snapshot');
+listedBackups = [{ backup_id: 'verified-file-backup', file_count: 0, restorable: true }];
+await backupListCard._loadBackups();
+assert.equal(backupListCard._selectedBackup, '', 'a snapshot with no files cannot remain selected');
+assert.equal(backupListCard._restoreConfirmed, false, 'discard consent when the selected snapshot disappears');
+assert.equal(backupListCard.shadowRoot.querySelector('[data-action="restore"]').disabled, true);
 
 console.log('encoding integration-only workflow assertions passed');
