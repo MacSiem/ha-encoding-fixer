@@ -93,3 +93,26 @@ test('in-place language and unchanged administrator updates preserve the authori
     assert.equal(card._previewState, preview); assert.equal(calls.length, count);
   } finally { dom.window.close(); }
 });
+
+test('regained administrator cannot accept a preview reply from before the in-place role change', async () => {
+  const { dom, card, hass, calls } = await fixture();
+  try {
+    let finish;
+    const initialWS = hass.callWS;
+    hass.callWS = command => {
+      if (!command.type.endsWith('/preview')) return initialWS(command);
+      calls.push(command.type);
+      return new Promise(resolve => { finish = resolve; });
+    };
+    const pending = card._preview();
+    hass.user.is_admin = false; card.hass = hass;
+    hass.user.is_admin = true; card.hass = hass;
+    await new Promise(resolve => setImmediate(resolve));
+    const count = calls.length;
+    finish({ preview_id: 'old-admin-preview', findings: [{ change_id: 'old-admin-change' }] });
+    await pending;
+    assert.equal(card._previewState, null); assert.equal(card._selectedChanges.size, 0);
+    assert.equal(card._confirmed, false); assert.equal(card._busy, false);
+    assert.equal(card._targets.length, 1); assert.equal(calls.length, count);
+  } finally { dom.window.close(); }
+});
