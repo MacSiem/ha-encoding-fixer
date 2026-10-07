@@ -3,12 +3,13 @@ import asyncio
 import sys
 import types
 import unittest
-from tests.test_file_workflow import _load, _load_websocket_module
+import importlib
 
 
 class FrontendLifecycleTests(unittest.TestCase):
     def test_yaml_unload_removes_only_its_extra_module(self):
-        _load_websocket_module()
+        boundary = sys.modules.get("test_file_workflow") or importlib.import_module("tests.test_file_workflow")
+        boundary._load_websocket_module()
         frontend = types.ModuleType("homeassistant.components.frontend")
         frontend.DATA_EXTRA_MODULE_URL = "extra_modules"
         frontend.add_extra_js_url = lambda hass, url: hass.data["extra_modules"].add(url)
@@ -21,7 +22,7 @@ class FrontendLifecycleTests(unittest.TestCase):
         sys.modules["homeassistant.components.http"] = http
         sys.modules["homeassistant.components"].frontend = frontend
         sys.modules["homeassistant.components"].panel_custom = panel
-        module = _load("encoding_fixer_security.frontend", "custom_components/ha_encoding_fixer/frontend.py")
+        module = boundary._load("encoding_fixer_security.frontend", "custom_components/ha_encoding_fixer/frontend.py")
         hass = types.SimpleNamespace(data={"lovelace": {"mode": "yaml"}, "extra_modules": {"/foreign.js"}})
 
         async def scenario():
