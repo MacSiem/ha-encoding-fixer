@@ -620,6 +620,11 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 await asyncio.sleep(0)
                 await asyncio.sleep(0)
                 task.cancel()
+                await asyncio.sleep(0)
+                await asyncio.sleep(0)
+                task.cancel()
+                await asyncio.sleep(0)
+                await asyncio.sleep(0)
                 release_commit.set()
                 with self.assertRaises(asyncio.CancelledError):
                     await task
@@ -630,6 +635,65 @@ class RuntimeBoundaryTests(unittest.TestCase):
                 )
                 self.assertEqual(target.read_text(encoding="utf-8"), original)
                 self.assertEqual(service._operations, {})
+
+            asyncio.run(scenario())
+
+    def test_cancelled_restore_holds_lock_and_close_until_disk_write_finishes(self) -> None:
+        """Cancellation must not let another writer or unload race the thread."""
+        import threading
+        websocket_module = _load_websocket_module()
+        with tempfile.TemporaryDirectory() as root_name:
+            root = Path(root_name)
+            target = root / "configuration.yaml"
+            original = b"name: Original\n"
+            target.write_bytes(original)
+            hass = _Hass(root)
+            backup_id = backup.create_backup_dir(hass)
+            backup.copy_file_to_backup(hass, backup_id, "configuration.yaml")
+            target.write_bytes(b"name: Changed\n")
+            started = threading.Event()
+            release = threading.Event()
+
+            class FakeHass(_Hass):
+                def __init__(self, config_root):
+                    super().__init__(config_root)
+                    self.data = {websocket_module.DOMAIN: {}}
+
+                async def async_add_executor_job(self, function, *args):
+                    def execute():
+                        if isinstance(function, functools.partial) and function.func is websocket_module.backup.restore_backup:
+                            started.set()
+                            if not release.wait(3):
+                                raise RuntimeError("test executor release timed out")
+                        return function(*args)
+                    return await asyncio.to_thread(execute)
+
+            async def scenario():
+                service = websocket_module.EncodingFixerWorkflow(FakeHass(root))
+                connection = types.SimpleNamespace(user=types.SimpleNamespace(id="admin-restore", is_admin=True))
+                task = asyncio.create_task(service.async_restore(connection, backup_id, "restore-cancel-123456789", True))
+                close_task = None
+                try:
+                    while not started.is_set():
+                        await asyncio.sleep(0.001)
+                    task.cancel()
+                    for _ in range(5):
+                        await asyncio.sleep(0)
+                    close_task = asyncio.create_task(service.async_close())
+                    for _ in range(5):
+                        await asyncio.sleep(0)
+                    self.assertTrue(service._lock.locked(), "restore writer lock released before executor finished")
+                    self.assertFalse(close_task.done(), "unload finished while restore thread was writing")
+                    task.cancel()
+                    await asyncio.sleep(0)
+                    release.set()
+                    with self.assertRaises(asyncio.CancelledError):
+                        await task
+                    await close_task
+                    self.assertEqual(target.read_bytes(), original)
+                finally:
+                    release.set()
+                    await asyncio.gather(task, *( [close_task] if close_task else [] ), return_exceptions=True)
 
             asyncio.run(scenario())
 
