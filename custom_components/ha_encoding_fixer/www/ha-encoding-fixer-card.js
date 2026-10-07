@@ -445,6 +445,9 @@
 
     _render() {
       if (!this.shadowRoot) return;
+      const active = this.shadowRoot.activeElement;
+      const focusAttribute = ['data-action', 'data-target', 'data-change', 'data-confirm', 'data-backup-select', 'data-restore-confirm'].find(key => active?.hasAttribute(key));
+      const focusValue = focusAttribute ? active.getAttribute(focusAttribute) : null;
       const t = (message, values) => _esc(this._t(message, values));
       if (!this._hass) {
         this.shadowRoot.innerHTML = `<style>${this._styles()}</style><ha-card><div class="loading">${t('Connecting to Home Assistant…')}</div></ha-card>`;
@@ -481,6 +484,10 @@
           ${this._isAdmin() && this._config.show_support !== false && !supportDismissed() ? ownDonateFooter((message) => this._t(message)) : ''}
         </ha-card>`;
       this.shadowRoot.innerHTML = html;
+      if (focusAttribute) {
+        const next = [...this.shadowRoot.querySelectorAll(`[${focusAttribute}]`)].find(control => control.getAttribute(focusAttribute) === focusValue);
+        if (next && !next.disabled) next.focus({ preventScroll: true });
+      }
     }
 
     _styles() { return `

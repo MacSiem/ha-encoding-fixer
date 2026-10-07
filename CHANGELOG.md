@@ -8,6 +8,7 @@
 - Use a dedicated bundled sidebar element so an older dashboard module cannot take over the new panel; preserve user-managed dashboard resources.
 - Remove the owned YAML frontend URL on unload, preserving other integrations' URLs.
 - Reject incomplete Apply/Restore success responses and show the server's restart recommendation after file changes.
+- Preserve keyboard focus across language and selection updates while clearing unavailable privileged controls after role changes.
 
 - Omit empty failed-attempt directories from the recovery selector; keep real offline-only snapshots and clear restore consent if its selected backup disappears.
 
