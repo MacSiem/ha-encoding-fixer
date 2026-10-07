@@ -2,6 +2,8 @@
 
 ## 6.0.2 (2026-10-07)
 
+- Preserve keyboard focus after native checkbox activation and clear recovered backup-read errors without replacing operation results. Reject malformed backup-list replies.
+
 - Detect administrator changes even when Home Assistant updates the existing user object. Clear reviewed findings and restore consent immediately, reject late preview replies from the previous role, and fetch fresh targets after permissions return. Ordinary language changes preserve the authorized review.
 
 - Keep restore's writer lock until its filesystem work finishes after cancellation, and complete mixed file/entity rollback even after repeated cancellation.

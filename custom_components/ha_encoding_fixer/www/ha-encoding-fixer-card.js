@@ -305,16 +305,19 @@
         const response = await this._call('list_backups', {}, epoch);
         // Failed attempts can allocate an empty directory without copying any file.
         // Keep real offline-only snapshots, but do not offer an empty allocation.
-        this._backups = Array.isArray(response?.backups)
-          ? response.backups.filter((item) => Number.isInteger(item?.file_count) && item.file_count > 0)
-          : [];
+        if (!Array.isArray(response?.backups)) throw { code: 'request_failed' };
+        this._backups = response.backups.filter((item) => Number.isInteger(item?.file_count) && item.file_count > 0);
+        if (this._notice?.scope === 'backups') this._notice = null;
         if (this._selectedBackup && !this._backups.some((item) => item.backup_id === this._selectedBackup && item.restorable !== false)) {
           this._selectedBackup = '';
           this._restoreConfirmed = false;
         }
         this._render();
       } catch (error) {
-        if (this._errorCode(error) !== 'request_cancelled') this._showError(error);
+        if (this._errorCode(error) !== 'request_cancelled') {
+          this._showError(error);
+          this._notice.scope = 'backups';
+        }
       }
     }
 
@@ -514,7 +517,16 @@
       this.shadowRoot.innerHTML = html;
       if (focusAttribute) {
         const next = [...this.shadowRoot.querySelectorAll(`[${focusAttribute}]`)].find(control => control.getAttribute(focusAttribute) === focusValue);
-        if (next && !next.disabled) next.focus({ preventScroll: true });
+        if (next && !next.disabled) {
+          next.focus({ preventScroll: true });
+          // Native checkbox activation can finish by blurring the removed input.
+          // Restore only an otherwise lost focus after that activation completes.
+          window.requestAnimationFrame?.(() => {
+            if (next.isConnected && !next.disabled && !this.shadowRoot.activeElement && document.activeElement === document.body) {
+              next.focus({ preventScroll: true });
+            }
+          });
+        }
       }
     }
 
