@@ -44,6 +44,7 @@
 
   const PL = Object.freeze({
   "Support development": "Wesprzyj rozwój",
+  "Applied and verified targets: {count}. Backup: {backup}. Restart Home Assistant after reviewing the result.": "Zastosowane i zweryfikowane cele: {count}. Kopia: {backup}. Uruchom ponownie Home Assistant po sprawdzeniu wyniku.",
   "Dismiss support link": "Ukryj link wsparcia",
   "Configuration": "Konfiguracja",
   "Automations": "Automatyzacje",
@@ -357,8 +358,11 @@
           change_ids: [...this._selectedChanges],
           operation_id: this._operationId(),
         }, epoch);
+        if (response?.status !== 'success' || !Number.isInteger(response.changed) || response.changed < 0) throw { code: 'request_failed' };
         this._clearPreview(false);
-        this._notice = { kind: 'success', message: 'Applied and verified targets: {count}. Backup: {backup}.', values: { count: Number(response?.changed || 0), backup: _asText(response?.backup_id) } };
+        this._notice = { kind: 'success', message: response.restart_recommended
+          ? 'Applied and verified targets: {count}. Backup: {backup}. Restart Home Assistant after reviewing the result.'
+          : 'Applied and verified targets: {count}. Backup: {backup}.', values: { count: response.changed, backup: _asText(response.backup_id) } };
         await this._loadBackups(epoch);
       } catch (error) {
         if (this._errorCode(error) !== 'request_cancelled') this._showError(error);
@@ -386,8 +390,9 @@
           operation_id: this._operationId(),
           confirmed: true,
         }, epoch);
+        if (response?.status !== 'success' || !Number.isInteger(response.restored) || response.restored < 0) throw { code: 'request_failed' };
         this._restoreConfirmed = false;
-        this._notice = { kind: 'success', message: 'Restored and verified files: {count}. Restart Home Assistant after reviewing the result.', values: { count: Number(response?.restored || 0) } };
+        this._notice = { kind: 'success', message: 'Restored and verified files: {count}. Restart Home Assistant after reviewing the result.', values: { count: response.restored } };
         await this._loadBackups(epoch);
       } catch (error) {
         if (this._errorCode(error) !== 'request_cancelled') this._showError(error);

@@ -24,6 +24,7 @@ from .const import (
 _LOGGER = logging.getLogger(__name__)
 
 DATA_STATIC = "ha_encoding_fixer_static_registered"
+DATA_EXTRA_URL = "ha_encoding_fixer_extra_url"
 
 
 def versioned_card_url() -> str:
@@ -106,11 +107,17 @@ async def async_register_card(hass: HomeAssistant) -> str:
         await resources.async_create_item({"res_type": "module", "url": url})
         return "resource"
     frontend.add_extra_js_url(hass, url)
+    hass.data[DATA_EXTRA_URL] = url
     return "extra_js_url"
 
 
 async def async_unregister_card(hass: HomeAssistant) -> None:
-    """Remove the Lovelace resource this integration created."""
+    """Remove only this integration's resource or YAML fallback."""
+    if url := hass.data.pop(DATA_EXTRA_URL, None):
+        try:
+            frontend.remove_extra_js_url(hass, url)
+        except KeyError:
+            pass
     resources = _resources(hass)
     if resources is None or not hasattr(resources, "async_delete_item"):
         return

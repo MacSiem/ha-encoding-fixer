@@ -74,3 +74,19 @@ async def test_unload_removes_owned_resource_and_panel(hass: HomeAssistant) -> N
     assert await hass.config_entries.async_unload(entry.entry_id)
     assert PANEL_URL_PATH not in hass.data[frontend.DATA_PANELS]
     assert list(hass.data["lovelace"].resources.async_items()) == []
+
+
+async def test_yaml_fallback_unregisters_and_reload_restores_only_owned_url(hass: HomeAssistant) -> None:
+    from custom_components.ha_encoding_fixer.frontend import async_register_card, async_unregister_card
+    assert await async_setup_component(hass, "frontend", {})
+    hass.data["lovelace"] = {"mode": "yaml"}
+    frontend.add_extra_js_url(hass, "/foreign.js")
+    assert await async_register_card(hass) == "extra_js_url"
+    assert f"{CARD_URL}?v={VERSION}" in hass.data[frontend.DATA_EXTRA_MODULE_URL]
+    await async_unregister_card(hass)
+    assert hass.data[frontend.DATA_EXTRA_MODULE_URL] == {"/foreign.js"}
+    await async_unregister_card(hass)
+    await async_register_card(hass)
+    assert f"{CARD_URL}?v={VERSION}" in hass.data[frontend.DATA_EXTRA_MODULE_URL]
+    await async_unregister_card(hass)
+    assert hass.data[frontend.DATA_EXTRA_MODULE_URL] == {"/foreign.js"}
