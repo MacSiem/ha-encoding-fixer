@@ -433,10 +433,12 @@ class EncodingFixerWorkflow:
                             applied_entities,
                         )
                     )
-                    try:
-                        cleanup_ok = await asyncio.shield(cleanup_task)
-                    except asyncio.CancelledError:
-                        cleanup_ok = await cleanup_task
+                    while not cleanup_task.done():
+                        try:
+                            await asyncio.shield(cleanup_task)
+                        except asyncio.CancelledError:
+                            continue
+                    cleanup_ok = cleanup_task.result()
                     if not cleanup_ok:
                         _LOGGER.error(
                             "Encoding Fixer cancellation cleanup failed (rollback_failed)"
@@ -515,14 +517,23 @@ class EncodingFixerWorkflow:
             if not confirmed:
                 raise workflow.WorkflowError("confirmation_required")
             try:
-                restored = await self.hass.async_add_executor_job(
-                    partial(
-                        backup.restore_backup,
-                        self.hass,
-                        backup_id,
-                        validator=workflow.validate_yaml_bytes,
+                restore_task = asyncio.ensure_future(
+                    self.hass.async_add_executor_job(
+                        partial(
+                            backup.restore_backup,
+                            self.hass,
+                            backup_id,
+                            validator=workflow.validate_yaml_bytes,
+                        )
                     )
                 )
+                cancellation = None
+                while not restore_task.done():
+                    try:
+                        await asyncio.shield(restore_task)
+                    except asyncio.CancelledError as err:
+                        cancellation = err
+                restored = restore_task.result()
                 result = {
                     "status": "success",
                     "operation_id": operation_id,
@@ -537,6 +548,8 @@ class EncodingFixerWorkflow:
                     fingerprint,
                     result=result,
                 )
+                if cancellation is not None:
+                    raise cancellation
                 return result
             except Exception as err:  # noqa: BLE001
                 code = (
