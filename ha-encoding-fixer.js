@@ -44,6 +44,9 @@
 
   const PL = Object.freeze({
   "Support development": "Wesprzyj rozwój",
+  "Retry loading targets": "Ponów odczyt celów",
+  "The server allowlist could not be loaded.": "Nie udało się odczytać listy celów serwera.",
+  "No allowlisted targets are available.": "Brak dostępnych celów na liście serwera.",
   "Applied and verified targets: {count}. Backup: {backup}. Restart Home Assistant after reviewing the result.": "Zastosowane i zweryfikowane cele: {count}. Kopia: {backup}. Uruchom ponownie Home Assistant po sprawdzeniu wyniku.",
   "Dismiss support link": "Ukryj link wsparcia",
   "Configuration": "Konfiguracja",
@@ -133,6 +136,9 @@
       this._initialized = false;
       this._busy = false;
       this._targets = [];
+      this._targetsLoaded = false;
+      this._targetsLoading = false;
+      this._targetsError = false;
       this._selectedTargets = new Set();
       this._previewState = null;
       this._selectedChanges = new Set();
@@ -168,6 +174,9 @@
         this._initialized = false;
         this._busy = false;
         this._targets = [];
+        this._targetsLoaded = false;
+        this._targetsLoading = false;
+        this._targetsError = false;
         this._selectedTargets.clear();
         this._clearPreview(false);
         this._backups = [];
@@ -198,6 +207,7 @@
         if (!button || button.disabled) return;
         const action = button.dataset.action;
         if (action === 'preview') void this._preview();
+        if (action === 'retry-targets') void this._loadTargets();
         if (action === 'apply') void this._apply();
         if (action === 'list-backups') void this._loadBackups();
         if (action === 'restore') void this._restore();
@@ -260,16 +270,32 @@
     }
 
     async _loadTargets(epoch = this._epoch) {
+      if (this._targetsLoading || epoch !== this._epoch) return;
+      this._targetsLoading = true;
+      this._render();
       try {
         const response = await this._call('targets', {}, epoch);
-        const targets = Array.isArray(response?.targets) ? response.targets : [];
+        if (!Array.isArray(response?.targets)) throw { code: 'request_failed' };
+        const targets = response.targets;
         this._targets = targets.filter((item) => LABELS[item.target_id]);
+        this._targetsLoaded = true;
+        this._targetsError = false;
+        if (this._notice?.scope === 'targets') this._notice = null;
         if (!this._selectedTargets.size) {
           this._targets.filter((item) => item.available).forEach((item) => this._selectedTargets.add(item.target_id));
         }
         this._render();
       } catch (error) {
-        if (this._errorCode(error) !== 'request_cancelled') this._showError(error);
+        if (this._errorCode(error) !== 'request_cancelled') {
+          this._targetsError = true;
+          this._showError(error);
+          this._notice.scope = 'targets';
+        }
+      } finally {
+        if (epoch === this._epoch) {
+          this._targetsLoading = false;
+          this._render();
+        }
       }
     }
 
@@ -312,6 +338,7 @@
       const epoch = this._epoch;
       try {
         const response = await this._call('preview', { target_ids: targetIds }, epoch);
+        if (typeof response?.preview_id !== 'string' || !response.preview_id || !Array.isArray(response.findings)) throw { code: 'request_failed' };
         this._previewState = response;
         this._selectedChanges = new Set((response.findings || []).map((item) => item.change_id));
         this._confirmed = false;
@@ -406,7 +433,8 @@
 
     _targetMarkup() {
       const t = (message, values) => _esc(this._t(message, values));
-      if (!this._targets.length) return `<p class="muted">${t('Loading the server allowlist…')}</p>`;
+      if (this._targetsError) return `<p class="muted">${t('The server allowlist could not be loaded.')}</p><button class="secondary" data-action="retry-targets" type="button" ${this._targetsLoading ? 'disabled' : ''}>${t('Retry loading targets')}</button>`;
+      if (!this._targets.length) return `<p class="muted">${t(this._targetsLoaded ? 'No allowlisted targets are available.' : 'Loading the server allowlist…')}</p>`;
       return this._targets.map((item) => `
         <label class="target ${item.available ? '' : 'disabled'}">
           <input type="checkbox" data-target="${_esc(item.target_id)}" ${this._selectedTargets.has(item.target_id) ? 'checked' : ''} ${!item.available || this._busy ? 'disabled' : ''}>
