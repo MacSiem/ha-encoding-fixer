@@ -56,3 +56,37 @@ test('incomplete preview response cannot be reported as a verified empty result'
     assert.doesNotMatch(card.shadowRoot.textContent, /No encoding fixes were found/);
   } finally { dom.window.close(); }
 });
+
+for (const initialResponse of ['error', 'malformed']) {
+  test(`backup ${initialResponse} read clears its error after a successful refresh`, async () => {
+    let reads = 0;
+    const { dom, card } = fixture(async command => {
+      if (command.type.endsWith('/targets')) return { targets: [{ target_id: 'packages', available: true }] };
+      reads += 1;
+      if (reads === 1) {
+        if (initialResponse === 'error') throw { code: 'integration_unavailable' };
+        return {};
+      }
+      return { backups: [{ backup_id: '20261007-060020', file_count: 1, restorable: true }] };
+    });
+    try {
+      await settle();
+      assert.equal(card._notice?.kind, 'error');
+      card.shadowRoot.querySelector('[data-action="list-backups"]').click();
+      await settle();
+      assert.equal(card._notice, null);
+      assert.match(card.shadowRoot.querySelector('[data-backup-select]').textContent, /20261007-060020/);
+    } finally { dom.window.close(); }
+  });
+}
+
+test('successful backup refresh preserves a result notice from another operation', async () => {
+  const { dom, card } = fixture(async command => command.type.endsWith('/targets') ? { targets: [] } : { backups: [] });
+  try {
+    await settle();
+    const result = { kind: 'success', message: 'Restored and verified files: {count}. Restart Home Assistant after reviewing the result.', values: { count: 1 } };
+    card._notice = result;
+    await card._loadBackups();
+    assert.equal(card._notice, result);
+  } finally { dom.window.close(); }
+});
