@@ -44,11 +44,13 @@ If a mixed file/entity apply is cancelled while a filesystem write is still
 running, the integration waits for that bounded write to finish and restores
 both halves before cancellation propagates. Unloading the final config entry
 blocks new work, drains already-running operations and then removes the
-in-memory workflow authority.
+in-memory workflow authority. Repeated cancellation cannot interrupt that
+rollback. Restore also retains its writer lock until filesystem work finishes.
 
 Apply and restore requests carry operation IDs. A retry of the same operation
 returns its existing result; reusing that ID for a different request is
-rejected.
+rejected. Results are remembered for up to 256 operations while this integration
+workflow remains loaded; a restart or unload clears that retry history.
 
 ## Privacy
 
@@ -141,7 +143,10 @@ storage encryption or retention policy.
   binary or invalid UTF-8 targets are not modified.
 - If automatic rollback cannot be verified, stop and inspect the local Home
   Assistant logs and the timestamped backup before retrying.
-- The card and integration must come from the same release.
+- The card and integration must come from the same release. If you keep an older
+  HACS dashboard resource, update that copy too and reload the browser. The
+  bundled sidebar has a separate element so the older dashboard module cannot
+  replace its interface. User-managed resources are preserved on unload.
 
 ## Development checks
 

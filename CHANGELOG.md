@@ -1,10 +1,13 @@
 # Changelog
 
-## Unreleased
+## 6.0.2 (2026-10-07)
 
 - Detect administrator changes even when Home Assistant updates the existing user object. Clear reviewed findings and restore consent immediately, reject late preview replies from the previous role, and fetch fresh targets after permissions return. Ordinary language changes preserve the authorized review.
 
-## 6.0.2 (2026-09-29)
+- Keep restore's writer lock until its filesystem work finishes after cancellation, and complete mixed file/entity rollback even after repeated cancellation.
+- Use a dedicated bundled sidebar element so an older dashboard module cannot take over the new panel; preserve user-managed dashboard resources.
+- Remove the owned YAML frontend URL on unload, preserving other integrations' URLs.
+- Reject incomplete Apply/Restore success responses and show the server's restart recommendation after file changes.
 
 - Omit empty failed-attempt directories from the recovery selector; keep real offline-only snapshots and clear restore consent if its selected backup disappears.
 

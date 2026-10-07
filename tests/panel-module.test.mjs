@@ -14,7 +14,9 @@ for (const legacyFirst of [true, false]) {
       if (legacyFirst) legacy();
       dom.window.eval(readFileSync(new URL('../ha-encoding-fixer.js', import.meta.url), 'utf8'));
       if (!legacyFirst) legacy();
-      const panel = dom.window.document.createElement('ha-encoding-fixer-panel');
+      const constants = readFileSync(new URL('../custom_components/ha_encoding_fixer/const.py', import.meta.url), 'utf8');
+      const panelTag = constants.match(/CARD_ELEMENT = "([^"]+)"/)[1];
+      const panel = dom.window.document.createElement(panelTag);
       dom.window.document.body.append(panel);
       assert.equal(typeof panel.setConfig, 'function');
       panel.setConfig({ show_support: false });
