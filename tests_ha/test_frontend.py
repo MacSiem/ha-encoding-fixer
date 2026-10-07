@@ -82,11 +82,11 @@ async def test_yaml_fallback_unregisters_and_reload_restores_only_owned_url(hass
     hass.data["lovelace"] = {"mode": "yaml"}
     frontend.add_extra_js_url(hass, "/foreign.js")
     assert await async_register_card(hass) == "extra_js_url"
-    assert f"{CARD_URL}?v={VERSION}" in hass.data[frontend.DATA_EXTRA_MODULE_URL]
+    assert f"{CARD_URL}?v={VERSION}" in hass.data[frontend.DATA_EXTRA_MODULE_URL].urls
     await async_unregister_card(hass)
-    assert hass.data[frontend.DATA_EXTRA_MODULE_URL] == {"/foreign.js"}
+    assert hass.data[frontend.DATA_EXTRA_MODULE_URL].urls == {"/foreign.js"}
     await async_unregister_card(hass)
     await async_register_card(hass)
-    assert f"{CARD_URL}?v={VERSION}" in hass.data[frontend.DATA_EXTRA_MODULE_URL]
+    assert f"{CARD_URL}?v={VERSION}" in hass.data[frontend.DATA_EXTRA_MODULE_URL].urls
     await async_unregister_card(hass)
-    assert hass.data[frontend.DATA_EXTRA_MODULE_URL] == {"/foreign.js"}
+    assert hass.data[frontend.DATA_EXTRA_MODULE_URL].urls == {"/foreign.js"}
