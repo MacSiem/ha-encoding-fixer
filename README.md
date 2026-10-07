@@ -80,8 +80,11 @@ repaired confidently are not offered as changes.
 |---|---|
 | ![Encoding Fixer light theme](docs/screenshots/card-scan-light.png) | ![Encoding Fixer dark theme](docs/screenshots/card-scan-dark.png) |
 
-The screenshots show the current administrator card with synthetic available
-targets. Paths, names and file contents from a real HA instance are absent.
+The screenshots were captured from the installed 6.0.2 HACS candidate on a
+synthetic Home Assistant staging instance. They show the administrator first
+start in light and dark themes; no configuration contents or household data
+are shown. [Polish light](docs/screenshots/card-pl-light.png) and
+[Polish dark](docs/screenshots/card-pl-dark.png) captures are also available.
 
 ## Installation
 
