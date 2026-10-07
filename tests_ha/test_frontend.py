@@ -33,7 +33,7 @@ async def test_fresh_setup_registers_one_resource_and_admin_panel(hass: HomeAssi
     ]
     panel = hass.data[frontend.DATA_PANELS][PANEL_URL_PATH]
     assert panel.require_admin is True
-    assert panel.config["_panel_custom"]["name"] == "ha-encoding-fixer"
+    assert panel.config["_panel_custom"]["name"] == "ha-encoding-fixer-panel"
 
 
 async def test_existing_hacs_resource_is_not_duplicated(hass: HomeAssistant) -> None:
@@ -45,6 +45,9 @@ async def test_existing_hacs_resource_is_not_duplicated(hass: HomeAssistant) -> 
     await resources.async_create_item({"res_type": "module", "url": hacs_url})
     await _setup(hass)
     assert [item["url"] for item in resources.async_items()] == [hacs_url]
+    panel = hass.data[frontend.DATA_PANELS][PANEL_URL_PATH]
+    assert panel.config["_panel_custom"]["name"] == "ha-encoding-fixer-panel"
+    assert panel.config["_panel_custom"]["module_url"] == f"{CARD_URL}?v={VERSION}"
 
 
 async def test_upgrade_refreshes_versioned_resource(hass: HomeAssistant) -> None:

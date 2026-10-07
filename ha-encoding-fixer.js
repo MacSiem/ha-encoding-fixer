@@ -539,6 +539,9 @@
   }
 
   if (!customElements.get('ha-encoding-fixer')) customElements.define('ha-encoding-fixer', HAEncodingFixer);
+  // The sidebar must use this integration's frontend even when a legacy
+  // dashboard resource has already defined the public card element.
+  if (!customElements.get('ha-encoding-fixer-panel')) customElements.define('ha-encoding-fixer-panel', class extends HAEncodingFixer {});
   window.customCards = window.customCards || [];
   if (!window.customCards.some((card) => card.type === TAG)) {
     window.customCards.push({ type: TAG, name: 'Encoding Fixer', description: 'Secure, local-only mojibake repair with verified backups.' });
