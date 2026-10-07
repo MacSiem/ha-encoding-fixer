@@ -86,9 +86,12 @@ test('in-place language and unchanged administrator updates preserve the authori
   try {
     reviewedDraft(card);
     const preview = card._previewState; const epoch = card._epoch; const count = calls.length;
+    card.shadowRoot.querySelector('[data-action="apply"]').focus();
+    assert.equal(card.shadowRoot.activeElement.dataset.action, 'apply');
     hass.language = 'pl'; card.hass = hass;
     assert.equal(card._previewState, preview); assert.equal(card._epoch, epoch);
     assert.equal(card._confirmed, true); assert.equal(card._restoreConfirmed, true);
+    assert.equal(card.shadowRoot.activeElement?.dataset.action, 'apply');
     card.hass = hass;
     assert.equal(card._previewState, preview); assert.equal(calls.length, count);
   } finally { dom.window.close(); }
