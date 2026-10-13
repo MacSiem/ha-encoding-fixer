@@ -582,6 +582,23 @@
         button { width:100%; }
         .link { width:auto; }
       }
+
+      /* Family15: touch hitboxes without enlarging checkbox indicators. */
+      :host button,:host select,:host input:not([type=checkbox]),:host textarea,:host summary,:host a[href] { min-height:44px !important;min-width:44px !important;max-width:100%; }
+      :host button,:host summary,:host a[href] { white-space:normal;overflow-wrap:anywhere; }
+      :host label:has(input[type=checkbox]) { min-height:44px;min-width:44px; }
+      .donate a { display:inline-flex;align-items:center; }
+      :host { container-type:inline-size;container-name:family-encoding;min-width:0; }
+      .section-title,.findings-head,.donate { flex-wrap:wrap;min-width:0; }
+      @container family-encoding (width < 600px) {
+        header,.section-title,.donate { flex-direction:column; }
+        header { padding:22px 20px; } h1 { font-size:26px; }
+        .status-dot { align-self:flex-start; }
+        .finding { grid-template-columns:20px minmax(0,1fr); }
+        .verified { grid-column:2;justify-self:start; }
+        .panel { margin:12px;padding:18px 16px; }
+        .findings { max-height:none; }
+      }
     `; }
   }
 
