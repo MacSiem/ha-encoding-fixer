@@ -78,13 +78,15 @@ repaired confidently are not offered as changes.
 
 | Light | Dark |
 |---|---|
-| ![Encoding Fixer light theme](docs/screenshots/card-scan-light.png) | ![Encoding Fixer dark theme](docs/screenshots/card-scan-dark.png) |
+| ![Encoding Fixer light theme](docs/screenshots/card-review-en-light.jpg) | ![Encoding Fixer dark theme](docs/screenshots/card-review-en-dark.jpg) |
 
-The screenshots were captured from the installed 6.0.2 HACS candidate on a
-synthetic Home Assistant staging instance. They show the administrator first
-start in light and dark themes; no configuration contents or household data
-are shown. [Polish light](docs/screenshots/card-pl-light.png) and
-[Polish dark](docs/screenshots/card-pl-dark.png) captures are also available.
+The screenshots were captured from the installed 6.0.3 HACS candidate on a
+synthetic Home Assistant staging instance. They show a redacted review and
+recovery controls in light and dark themes; no configuration contents or
+household data are shown. Apply and Restore were not invoked for these captures.
+[Polish light](docs/screenshots/card-review-pl-light.jpg) and
+[Polish dark](docs/screenshots/card-review-pl-dark.jpg) captures are also available.
+See [capture provenance](docs/screenshots/README.md) for source and version details.
 
 ## Installation
 
