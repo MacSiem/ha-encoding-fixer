@@ -1,5 +1,10 @@
 # Changelog
 
+## 6.0.3 (2026-10-16)
+
+- Keep repair, selection and recovery actions at least 44 pixels tall, with full-size checkbox labels and controls that wrap to the card width.
+- Keep the existing preview, confirmation, backup, validation and restore workflow.
+
 ## 6.0.2 (2026-10-07)
 
 - Preserve keyboard focus after native checkbox activation and clear recovered backup-read errors without replacing operation results. Reject malformed backup-list replies.
