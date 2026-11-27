@@ -1,0 +1,21 @@
+name: Codex HACS exact candidate QA
+on:
+  push:
+    branches: [codex/encoding-fixer-beta-hosted-qa-20261127]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out exact candidate
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          ref: 6f103f9deb07be07eb13d365e4bedd44564df31e
+          persist-credentials: false
+      - name: Verify candidate
+        run: test "$(git rev-parse HEAD)" = 6f103f9deb07be07eb13d365e4bedd44564df31e
+      - name: HACS Action
+        uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa
+        with:
+          category: integration
