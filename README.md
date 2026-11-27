@@ -114,7 +114,15 @@ entry is required.
 
 The optional one-line support link appears only for administrators. Set
 `show_support: false` in the card configuration to hide it; dismissing it is
-remembered in this browser.
+remembered in this browser. The visual editor also offers an initial section:
+`targets`, `review`, or `recovery`. With no `default_tab`, the existing view
+shows all sections. Choosing a section adds navigation; it does not start a
+preview, repair, or restore.
+
+Edytor wizualny pozwala wybrać sekcję początkową: cele, podgląd lub
+odzyskiwanie. Bez `default_tab` wszystkie sekcje pozostają widoczne jak
+wcześniej. Wybór sekcji dodaje nawigację i nie uruchamia podglądu, naprawy
+ani przywracania.
 
 ## Backups and restore
 

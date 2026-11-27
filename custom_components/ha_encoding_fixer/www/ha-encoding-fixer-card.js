@@ -109,8 +109,10 @@
   "Home Assistant · local only": "Home Assistant · tylko lokalnie",
   "Preview, validate, back up and repair mojibake without exposing configuration contents to the browser.": "Przeglądaj, sprawdzaj i naprawiaj błędy kodowania z kopiami zapasowymi, bez udostępniania treści konfiguracji przeglądarce.",
   "Admin": "Administrator",
+  "Sections": "Sekcje",
   "Step 1": "Krok 1",
   "Choose allowlisted targets": "Wybierz dozwolone cele",
+  "Unavailable targets: {count}": "Niedostępne cele: {count}",
   "Read-only preview": "Podgląd bez zapisu",
   "Working safely…": "Bezpieczne przetwarzanie…",
   "Create preview": "Utwórz podgląd",
@@ -151,9 +153,16 @@
       this._render();
     }
 
-    setConfig(config) { this._config = config || {}; this._render(); }
+    setConfig(config) {
+      const previous = this._config.default_tab;
+      this._config = config || {};
+      if (previous !== this._config.default_tab) this._activeSection = null;
+      this._render();
+    }
     getCardSize() { return 8; }
-    static getStubConfig() { return {}; }
+    getGridOptions() { return {columns:12, min_columns:6, min_rows:3}; }
+    static getConfigElement() { return document.createElement('ha-encoding-fixer-editor'); }
+    static getStubConfig() { return {type:'custom:ha-encoding-fixer'}; }
 
     set hass(value) {
       const hadHass = Boolean(this._hass);
@@ -168,6 +177,7 @@
       const languageChanged = this._language !== nextLanguage;
       this._language = nextLanguage;
       this._hass = value || null;
+      this.style.colorScheme = value?.themes?.darkMode ? 'dark' : 'light';
       this._admin = this._isAdmin();
       if (!this._hass || identityChanged) {
         this._epoch += 1;
@@ -206,6 +216,7 @@
         const button = event.target.closest('button[data-action]');
         if (!button || button.disabled) return;
         const action = button.dataset.action;
+        if (action === 'section') { this._activeSection = button.dataset.section; this._render(); }
         if (action === 'preview') void this._preview();
         if (action === 'retry-targets') void this._loadTargets();
         if (action === 'apply') void this._apply();
@@ -438,11 +449,18 @@
       const t = (message, values) => _esc(this._t(message, values));
       if (this._targetsError) return `<p class="muted">${t('The server allowlist could not be loaded.')}</p><button class="secondary" data-action="retry-targets" type="button" ${this._targetsLoading ? 'disabled' : ''}>${t('Retry loading targets')}</button>`;
       if (!this._targets.length) return `<p class="muted">${t(this._targetsLoaded ? 'No allowlisted targets are available.' : 'Loading the server allowlist…')}</p>`;
-      return this._targets.map((item) => `
+      const renderTarget = item => `
         <label class="target ${item.available ? '' : 'disabled'}">
           <input type="checkbox" data-target="${_esc(item.target_id)}" ${this._selectedTargets.has(item.target_id) ? 'checked' : ''} ${!item.available || this._busy ? 'disabled' : ''}>
           <span><strong>${t(LABELS[item.target_id])}</strong><small>${t(item.available ? 'Available' : 'Not configured')}</small></span>
-        </label>`).join('');
+        </label>`;
+      const available = this._targets.filter(item => item.available);
+      const unavailable = this._targets.filter(item => !item.available);
+      return available.map(renderTarget).join('') + (unavailable.length ? `
+        <details class="unavailable-targets" data-unavailable-targets ${this._unavailableOpen ? 'open' : ''}>
+          <summary data-unavailable-toggle>${t('Unavailable targets: {count}', {count:unavailable.length})}</summary>
+          <div class="targets">${unavailable.map(renderTarget).join('')}</div>
+        </details>` : '');
     }
 
     _findingsMarkup() {
@@ -477,7 +495,8 @@
     _render() {
       if (!this.shadowRoot) return;
       const active = this.shadowRoot.activeElement;
-      const focusAttribute = ['data-action', 'data-target', 'data-change', 'data-confirm', 'data-backup-select', 'data-restore-confirm'].find(key => active?.hasAttribute(key));
+      this._unavailableOpen = this.shadowRoot.querySelector('[data-unavailable-targets]')?.open === true;
+      const focusAttribute = ['data-section', 'data-action', 'data-target', 'data-change', 'data-confirm', 'data-backup-select', 'data-restore-confirm', 'data-unavailable-toggle'].find(key => active?.hasAttribute(key));
       const focusValue = focusAttribute ? active.getAttribute(focusAttribute) : null;
       const t = (message, values) => _esc(this._t(message, values));
       if (!this._hass) {
@@ -488,6 +507,10 @@
         this.shadowRoot.innerHTML = `<style>${this._styles()}</style><ha-card><div class="permission"><span class="lock">${t('Restricted')}</span><h2>${t('Administrator access required')}</h2><p>${t('Encoding previews can inspect configuration metadata and fixes can write configuration files. This card does not use a reduced-permission fallback.')}</p></div></ha-card>`;
         return;
       }
+      const tabs = ['targets', 'review', 'recovery'];
+      const configuredTab = tabs.includes(this._config.default_tab) ? this._config.default_tab : null;
+      const activeTab = configuredTab ? (this._activeSection || configuredTab) : null;
+      const nav = activeTab ? `<nav class="sections" aria-label="${t('Sections')}">${tabs.map((id, i) => `<button type="button" data-action="section" data-section="${id}" aria-pressed="${activeTab === id}">${t(['Choose allowlisted targets', 'Review redacted findings', 'Recovery'][i])}</button>`).join('')}</nav>` : '';
       const selectedCount = this._selectedChanges.size;
       const notice = this._notice ? `<div class="notice ${_esc(this._notice.kind)}" role="status">${_esc(this._t(this._notice.message, this._notice.values))}</div>` : '';
       const preview = this._previewState;
@@ -499,19 +522,20 @@
         <ha-card>
           <header><div><span class="eyebrow">${t('Home Assistant · local only')}</span><h1>Encoding Fixer</h1><p>${t('Preview, validate, back up and repair mojibake without exposing configuration contents to the browser.')}</p></div><span class="shield">${t('Admin')}</span></header>
           ${notice}
-          <section class="panel">
+          ${nav}
+          <section class="panel" data-section-panel="targets" ${activeTab && activeTab !== 'targets' ? 'hidden' : ''}>
             <div class="section-title"><div><span class="eyebrow">${t('Step 1')}</span><h2>${t('Choose allowlisted targets')}</h2></div><span class="status-dot">${t('Read-only preview')}</span></div>
             <div class="targets">${this._targetMarkup()}</div>
             <button class="primary" data-action="preview" type="button" ${this._busy || !this._selectedTargets.size ? 'disabled' : ''}>${t(this._busy ? 'Working safely…' : 'Create preview')}</button>
           </section>
-          <section class="panel">
+          <section class="panel" data-section-panel="review" ${activeTab && activeTab !== 'review' ? 'hidden' : ''}>
             <div class="section-title"><div><span class="eyebrow">${t('Step 2')}</span><h2>${t('Review redacted findings')}</h2></div>${preview ? `<button class="link" data-action="clear-preview" type="button">${t('Clear')}</button>` : ''}</div>
             ${preview?.completeness === 'partial' ? `<div class="notice warning">${t('Preview is partial because one or more targets were unavailable or invalid UTF-8. Only visible findings can be selected.')}</div>` : ''}
             ${this._findingsMarkup()}
             ${confirmation}
             <button class="primary" data-action="apply" type="button" ${!preview || !selectedCount || !this._confirmed || this._busy ? 'disabled' : ''}>${selectedCount ? t('Apply selected fixes: {count}', { count: selectedCount }) : t('Select findings to continue')}</button>
           </section>
-          ${this._backupMarkup()}
+          <div data-section-panel="recovery" ${activeTab && activeTab !== 'recovery' ? 'hidden' : ''}>${this._backupMarkup()}</div>
           ${this._isAdmin() && this._config.show_support !== false && !supportDismissed() ? ownDonateFooter((message) => this._t(message)) : ''}
         </ha-card>`;
       this.shadowRoot.innerHTML = html;
@@ -539,8 +563,15 @@
       .eyebrow { text-transform:uppercase; letter-spacing:.09em; font-size:11.5px; line-height:1.4; font-weight:800; color:var(--primary-color); }
       .shield,.status-dot,.verified,.lock { white-space:nowrap; border-radius:999px; padding:6px 10px; font-size:12px; font-weight:750; background:color-mix(in srgb, var(--primary-color) 12%, transparent); color:var(--primary-color); }
       .panel { margin:18px; padding:22px; border:1px solid var(--divider-color); border-radius:14px; background:color-mix(in srgb, var(--card-background-color) 96%, var(--primary-color) 4%); }
+      [hidden] { display:none !important; }
+      .sections { display:flex; flex-wrap:wrap; gap:8px; margin:18px; }
+      .sections button { background:var(--card-background-color); color:var(--primary-text-color); border:1px solid var(--divider-color); }
+      .sections button[aria-pressed=true] { border:2px solid var(--primary-color); }
       .section-title { display:flex; align-items:flex-start; justify-content:space-between; gap:18px; margin-bottom:16px; }
       .targets { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(230px,100%),1fr)); gap:12px; margin:18px 0 20px; }
+      .unavailable-targets {grid-column:1 / -1;min-width:0;}
+      .unavailable-targets summary {cursor:pointer;padding:10px 0;color:var(--primary-text-color);}
+      .unavailable-targets summary:focus-visible {outline:2px solid var(--primary-color);outline-offset:2px;}
       .target,.finding,.confirm { display:flex; align-items:flex-start; gap:13px; border:1px solid var(--divider-color); border-radius:12px; padding:15px 16px; cursor:pointer; }
       .target span,.finding-main { display:flex; flex-direction:column; gap:5px; min-width:0; } small,.muted { color:var(--secondary-text-color); font-size:13.5px; line-height:1.65; } .target.disabled { opacity:.55; cursor:not-allowed; }
       input[type=checkbox] { width:18px; height:18px; accent-color:var(--primary-color); flex:0 0 auto; }
@@ -564,7 +595,7 @@
       .confirm.important { border-color:color-mix(in srgb, var(--warning-color, #ed8b00) 45%, var(--divider-color)); background:color-mix(in srgb, var(--warning-color, #ed8b00) 8%, transparent); }
       .notice { margin:18px; padding:15px 17px; border-radius:10px; line-height:1.65; font-size:13.5px; border:1px solid transparent; overflow-wrap:anywhere; }
       .notice.error { color:var(--error-color, #b3261e); background:color-mix(in srgb, var(--error-color, #b3261e) 9%, transparent); border-color:color-mix(in srgb, var(--error-color, #b3261e) 25%, transparent); }
-      .notice.success { color:var(--success-color, #16855b); background:color-mix(in srgb, var(--success-color, #16855b) 9%, transparent); }
+      .notice.success { color:var(--primary-text-color, #000); background:var(--card-background-color, #fff); border-color:var(--success-color, #16855b); }
       .notice.warning { margin:0 0 12px; color:var(--warning-color, #a65d00); background:color-mix(in srgb, var(--warning-color, #ed8b00) 9%, transparent); }
       select { width:100%; min-height:44px; padding:0 12px; color:var(--primary-text-color); background:var(--card-background-color); border:1px solid var(--divider-color); border-radius:10px; margin:14px 0 2px; }
       .donate { display:flex; align-items:center; justify-content:center; gap:12px; padding:8px 16px; border-top:1px solid var(--divider-color); color:var(--secondary-text-color); font-size:12px; line-height:1.4; }
@@ -601,6 +632,53 @@
       }
     `; }
   }
+
+
+  class HAEncodingFixerEditor extends HTMLElement {
+    constructor() {
+      super();
+      this.attachShadow({mode:'open'});
+      this._config = {};
+      this.shadowRoot.addEventListener('change', event => {
+        if (event.target.matches('[data-show-support]')) this._config = {...this._config, show_support:event.target.checked};
+        else if (event.target.matches('[data-default-tab]')) {
+          this._config = {...this._config};
+          if (event.target.value) this._config.default_tab = event.target.value;
+          else delete this._config.default_tab;
+        } else return;
+        this.dispatchEvent(new CustomEvent('config-changed', {
+          detail:{config:this._config}, bubbles:true, composed:true
+        }));
+      });
+    }
+    setConfig(config) { this._config = {...(config || {})}; this._render(); }
+    set hass(value) { this._hass = value; this._render(); }
+    _render() {
+      const pl = /^pl(?:[-_]|$)/i.test(this._hass?.language || '');
+      this.style.colorScheme = this._hass?.themes?.darkMode ? 'dark' : 'light';
+      if (!this.shadowRoot.querySelector('input')) this.shadowRoot.innerHTML = `
+        <style>
+          :host {display:block;color:var(--primary-text-color);font:inherit;}
+          label {display:flex;align-items:center;gap:12px;min-height:44px;cursor:pointer;}
+          input {width:18px;height:18px;accent-color:var(--primary-color);}
+          input:focus-visible {outline:2px solid var(--primary-color);outline-offset:3px;}
+          p {color:var(--secondary-text-color);line-height:1.5;}
+        </style>
+        <label><input type="checkbox" data-show-support><span></span></label>
+        <label><span data-section-label></span><select data-default-tab><option value=""></option><option value="targets"></option><option value="review"></option><option value="recovery"></option></select></label><p></p>`;
+      this.shadowRoot.querySelector('input').checked = this._config.show_support !== false;
+      const select = this.shadowRoot.querySelector('[data-default-tab]');
+      select.value = ['targets','review','recovery'].includes(this._config.default_tab) ? this._config.default_tab : '';
+      this.shadowRoot.querySelector('[data-section-label]').textContent = pl ? 'Sekcja początkowa' : 'Initial section';
+      const names = pl ? ['Wszystkie (dotychczasowy widok)', 'Cele', 'Podgląd', 'Odzyskiwanie'] : ['All (existing view)', 'Targets', 'Review', 'Recovery'];
+      [...select.options].forEach((option, index) => { option.textContent = names[index]; });
+      this.shadowRoot.querySelector('label span').textContent = pl ? 'Pokaż stopkę wsparcia administratorowi' : 'Show the support footer to administrators';
+      this.shadowRoot.querySelector('p').textContent = pl
+        ? 'Opcja zmienia widok karty. Nie przyznaje dostępu do podglądu ani naprawy.'
+        : 'This option changes the card display. It does not grant preview or repair access.';
+    }
+  }
+  if (!customElements.get('ha-encoding-fixer-editor')) customElements.define('ha-encoding-fixer-editor', HAEncodingFixerEditor);
 
   if (!customElements.get('ha-encoding-fixer')) customElements.define('ha-encoding-fixer', HAEncodingFixer);
   // The sidebar must use this integration's frontend even when a legacy
