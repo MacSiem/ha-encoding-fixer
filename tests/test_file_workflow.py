@@ -788,3 +788,88 @@ class RuntimeBoundaryTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TransactionRegressionTests(unittest.TestCase):
+    def test_backup_inventory_rejects_symlink_directory(self):
+        with tempfile.TemporaryDirectory() as name, tempfile.TemporaryDirectory() as outside:
+            root = Path(name); hass = _Hass(root)
+            bid = backup.create_backup_dir(hass)
+            folder = root / backup.BACKUP_DIR_NAME / bid
+            (folder / 'configuration.yaml').write_text('a: 1\n')
+            (folder / 'packages').symlink_to(outside, target_is_directory=True)
+            self.assertFalse(backup.list_backups(hass)[0]['restorable'])
+            with self.assertRaises(OSError):
+                backup.restore_backup(hass, bid)
+
+    def test_backup_copy_must_match_preview_original(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root)
+            target = root / 'configuration.yaml'; target.write_text('name: WÅ‚Ä…cznik\n')
+            preview = workflow.build_file_preview(root, ['configuration'])
+            bid = backup.create_backup_dir(hass)
+            original = backup.copy_file_to_backup
+            def drift(*args):
+                target.write_text('name: foreign\n')
+                return original(*args)
+            backup.copy_file_to_backup = drift
+            try:
+                with self.assertRaises(workflow.WorkflowError):
+                    workflow.prepare_file_transaction(hass, preview, {preview['findings'][0]['change_id']}, bid)
+            finally:
+                backup.copy_file_to_backup = original
+
+    def test_rollback_preserves_foreign_drift(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root)
+            target = root / 'configuration.yaml'; target.write_bytes(b'foreign')
+            plan = {'relative_path': 'configuration.yaml', 'original': b'original', 'updated': b'updated', 'mode': 0o600}
+            self.assertFalse(workflow.rollback_file_transaction(hass, [plan]))
+            self.assertEqual(target.read_bytes(), b'foreign')
+
+    def test_missing_target_is_reported_without_path(self):
+        with tempfile.TemporaryDirectory() as name:
+            result = workflow.build_file_preview(Path(name), ['configuration'])
+            self.assertEqual(result['completeness'], 'partial')
+            self.assertEqual(result['skipped_targets'], ['configuration'])
+
+    def test_cancelled_read_drains_before_close(self):
+        import threading
+        module = _load_websocket_module()
+        async def scenario():
+            started = threading.Event(); release = threading.Event()
+            class Hass:
+                config = _Config(Path('/'))
+                async def async_add_executor_job(self, function, *args):
+                    def read():
+                        started.set(); release.wait(); return []
+                    return await asyncio.to_thread(read)
+            service = module.EncodingFixerWorkflow(Hass())
+            task = asyncio.create_task(service.async_targets())
+            await asyncio.to_thread(started.wait)
+            task.cancel()
+            close = asyncio.create_task(service.async_close())
+            await asyncio.sleep(0.01)
+            try:
+                self.assertFalse(close.done())
+            finally:
+                release.set()
+            with self.assertRaises(asyncio.CancelledError): await task
+            await close
+        asyncio.run(scenario())
+
+    def test_restore_rejects_changed_backup_before_write(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root)
+            target = root / 'configuration.yaml'; target.write_text('a: 1\n')
+            bid = backup.create_backup_dir(hass); backup.copy_file_to_backup(hass, bid, 'configuration.yaml')
+            target.write_text('a: 2\n')
+            original = backup.copy_file_to_backup
+            def drift(*args):
+                result = original(*args)
+                (root / backup.BACKUP_DIR_NAME / bid / 'configuration.yaml').write_text('a: 3\n')
+                return result
+            backup.copy_file_to_backup = drift
+            try:
+                with self.assertRaises(OSError): backup.restore_backup(hass, bid)
+            finally: backup.copy_file_to_backup = original
+            self.assertEqual(target.read_text(), 'a: 2\n')

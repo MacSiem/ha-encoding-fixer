@@ -313,6 +313,27 @@ def restore_file_from_backup(
     }
 
 
+def _backup_inventory(root: Path) -> dict[str, tuple[bytes, int]]:
+    """Read every entry, rejecting incomplete or unsafe inventories."""
+    entries: dict[str, tuple[bytes, int]] = {}
+    def fail(error: OSError) -> None:
+        raise error
+    for current, directories, filenames in os.walk(root, topdown=True, followlinks=False, onerror=fail):
+        current_path = Path(current)
+        for name in directories:
+            path = current_path / name
+            if path.is_symlink() or not path.is_dir():
+                raise OSError("unsafe backup entry")
+        for name in filenames:
+            path = current_path / name
+            if path.is_symlink():
+                raise OSError("unsafe backup entry")
+            relative = path.relative_to(root).as_posix()
+            validate_restore_content_path(relative)
+            entries[relative] = _read_regular(path)
+    return entries
+
+
 def list_backups(hass: Any) -> list[dict[str, Any]]:
     """Return available backup directories and their relative file paths."""
     config_root = _config_root(hass)
@@ -338,12 +359,15 @@ def list_backups(hass: Any) -> list[dict[str, Any]]:
             followlinks=False,
         ):
             current_path = Path(current)
+            if any((current_path / name).is_symlink() for name in directories):
+                restorable = False
             directories[:] = [
                 name for name in directories if not (current_path / name).is_symlink()
             ]
             for filename in filenames:
                 path = current_path / filename
                 if path.is_symlink() or not path.is_file():
+                    restorable = False
                     continue
                 relative_path = path.relative_to(directory).as_posix()
                 try:
@@ -392,6 +416,8 @@ def restore_backup(
         followlinks=False,
     ):
         current_path = Path(current)
+        if any((current_path / name).is_symlink() for name in directories):
+            raise OSError("unsafe backup entry")
         directories[:] = [
             name for name in directories if not (current_path / name).is_symlink()
         ]
@@ -426,6 +452,10 @@ def restore_backup(
     if not plans:
         raise ValueError("Backup contains no restorable files")
 
+    expected_inventory = {plan["relative_path"]: (plan["data"], plan["mode"]) for plan in plans}
+    if _backup_inventory(backup_root) != expected_inventory:
+        raise OSError("backup changed")
+
     # Only after every backup entry, destination and YAML document has passed
     # validation do we allocate and populate the rollback snapshot.
     rollback_backup_id = create_backup_dir(hass)
@@ -438,15 +468,27 @@ def restore_backup(
                 plan["relative_path"],
             )
             rollback_path = rollback.backup_relative_path
+            copied = read_config_file(hass, rollback_path)
+            if copied != plan["original"]:
+                raise OSError("rollback snapshot changed")
         plan["rollback_path"] = rollback_path
 
     changed: list[dict[str, Any]] = []
     try:
+        if _backup_inventory(backup_root) != expected_inventory:
+            raise OSError("backup changed")
         for plan in plans:
             # Roll back this target even if replace succeeded but fsync or
             # readback verification raises before the write helper returns.
+            source = _assert_no_symlink_path(config_root, str((backup_root / plan["relative_path"]).relative_to(config_root)), regular=True)
+            if _read_regular(source) != (plan["data"], plan["mode"]):
+                raise OSError("backup changed")
+            target = _assert_no_symlink_path(config_root, plan["relative_path"], regular=False)
+            current = _read_regular(target) if target.exists() else None
+            if current != plan["original"]:
+                raise OSError("target changed")
             changed.append(plan)
-            _atomic_write(plan["target"], plan["data"], plan["mode"])
+            _atomic_write(target, plan["data"], plan["mode"])
             verified, _ = _read_regular(plan["target"])
             if verified != plan["data"]:
                 raise OSError("restore verification failed")
@@ -454,11 +496,18 @@ def restore_backup(
         rollback_failed = False
         for plan in reversed(changed):
             try:
+                target = _assert_no_symlink_path(config_root, plan["relative_path"], regular=False)
+                current = _read_regular(target) if target.exists() else None
+                if current == plan["original"]:
+                    continue
+                if current is None or current[0] != plan["data"]:
+                    rollback_failed = True
+                    continue
                 if plan["original"] is None:
-                    plan["target"].unlink(missing_ok=True)
+                    target.unlink()
                 else:
                     original_data, original_mode = plan["original"]
-                    _atomic_write(plan["target"], original_data, original_mode)
+                    _atomic_write(target, original_data, original_mode)
             except Exception:
                 rollback_failed = True
         if rollback_failed:

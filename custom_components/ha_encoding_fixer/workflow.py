@@ -100,6 +100,7 @@ def build_file_preview(
         "errors": deepcopy(scan["errors"]),
         "scanned_files": int(scan["scanned_files"]),
         "completeness": scan["completeness"],
+        "skipped_targets": scan["skipped_targets"],
     }
 
 
@@ -177,6 +178,12 @@ def prepare_file_transaction(
         except (OSError, ValueError) as err:
             raise WorkflowError("backup_failed") from err
         plan["backup_path"] = backup_copy.backup_relative_path
+        try:
+            copied, copied_mode = backup.read_config_file(hass, plan["backup_path"])
+            if copied != plan["original"] or copied_mode != plan["mode"]:
+                raise WorkflowError("backup_failed")
+        except (OSError, ValueError) as err:
+            raise WorkflowError("backup_failed") from err
     return plans
 
 
@@ -185,6 +192,12 @@ def rollback_file_transaction(hass: Any, plans: list[dict[str, Any]]) -> bool:
     restored = True
     for plan in reversed(plans):
         try:
+            current, _ = backup.read_config_file(hass, plan["relative_path"])
+            if current == plan["original"]:
+                continue
+            if current != plan["updated"]:
+                restored = False
+                continue
             backup.atomic_write_config_file(
                 hass,
                 plan["relative_path"],

@@ -46,6 +46,27 @@ def _requires_active(method):
     return wrapped
 
 
+def _read_session(method):
+    """Keep a cancelled read alive until its executor and lifecycle finish."""
+    @wraps(method)
+    async def wrapped(self, *args, **kwargs):
+        task = asyncio.ensure_future(method(self, *args, **kwargs))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            while not task.done():
+                try:
+                    await asyncio.shield(task)
+                except asyncio.CancelledError:
+                    continue
+                except Exception:
+                    break
+            if not task.cancelled():
+                task.exception()
+            raise
+    return wrapped
+
+
 class EncodingFixerWorkflow:
     """Own previews and exactly-once operations for one HA runtime."""
 
@@ -152,6 +173,7 @@ class EncodingFixerWorkflow:
         return deepcopy(record["result"])
 
     @_requires_active
+    @_read_session
     async def async_targets(self) -> dict[str, Any]:
         root = Path(self.hass.config.path())
         available_files = await self.hass.async_add_executor_job(
@@ -204,6 +226,7 @@ class EncodingFixerWorkflow:
         return internal, public
 
     @_requires_active
+    @_read_session
     async def async_preview(
         self,
         connection: websocket_api.ActiveConnection,
@@ -236,6 +259,7 @@ class EncodingFixerWorkflow:
                 "errors": [],
                 "scanned_files": 0,
                 "completeness": "complete",
+                "skipped_targets": [],
             }
 
         entity_internal: list[dict[str, Any]] = []
@@ -271,6 +295,7 @@ class EncodingFixerWorkflow:
             "errors": file_preview["errors"],
             "scanned_files": file_preview["scanned_files"],
             "completeness": file_preview["completeness"],
+            "skipped_targets": file_preview["skipped_targets"],
         }
 
     async def _async_apply_entities(
@@ -493,6 +518,7 @@ class EncodingFixerWorkflow:
                 raise workflow.WorkflowError("apply_failed") from err
 
     @_requires_active
+    @_read_session
     async def async_list_backups(self) -> dict[str, Any]:
         backups = await self.hass.async_add_executor_job(
             backup.list_backups,

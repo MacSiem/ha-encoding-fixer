@@ -426,7 +426,10 @@ def scan_config_files(
     scanned_files = 0
 
     source_hashes: dict[str, str] = {}
-    for relative_path in iter_config_files(config_root, target_ids):
+    files = iter_config_files(config_root, target_ids)
+    present = {_target_id(path) for path in files}
+    skipped_targets = [target for target in _validate_target_ids(target_ids) if target not in present]
+    for relative_path in files:
         scanned_files += 1
         try:
             raw = read_regular_bytes(config_root, relative_path)
@@ -478,7 +481,8 @@ def scan_config_files(
         "changes": changes,
         "errors": errors,
         "source_hashes": source_hashes if include_sensitive else {},
-        "completeness": "partial" if errors else "complete",
+        "completeness": "partial" if errors or skipped_targets else "complete",
+        "skipped_targets": skipped_targets,
     }
 
 
