@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Encoding Fixer",
-        "description": "Set up Encoding Fixer. No options are required."
+        "description": "Set up Encoding Fixer. No options are required. Two diagnostic sensors are disabled by default for privacy. If enabled, the preview count and completeness and the backup time are visible to Home Assistant users and may be recorded."
       }
     },
     "abort": {
@@ -14,12 +14,10 @@
   "entity": {
     "sensor": {
       "last_preview": {
-        "name": "Last preview proposals",
-        "description": "Disabled by default for privacy. If enabled, the proposal count and completeness are visible to Home Assistant users and may be recorded."
+        "name": "Last preview proposals"
       },
       "last_backup": {
-        "name": "Last restorable backup",
-        "description": "Disabled by default for privacy. If enabled, the backup time is visible to Home Assistant users and may be recorded."
+        "name": "Last restorable backup"
       }
     }
   }

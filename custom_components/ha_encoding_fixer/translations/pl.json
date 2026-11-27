@@ -4,7 +4,7 @@
     "step": {
       "user": {
         "title": "Encoding Fixer",
-        "description": "Skonfiguruj Encoding Fixer. Opcje nie sa wymagane."
+        "description": "Skonfiguruj Encoding Fixer. Opcje nie są wymagane. Dwa czujniki diagnostyczne są domyślnie wyłączone dla prywatności. Po włączeniu liczba propozycji i kompletność podglądu oraz czas kopii są widoczne dla użytkowników Home Assistant i mogą być zapisywane."
       }
     },
     "abort": {
@@ -14,12 +14,10 @@
   "entity": {
     "sensor": {
       "last_preview": {
-        "name": "Propozycje ostatniego podglądu",
-        "description": "Domyślnie wyłączony dla prywatności. Po włączeniu liczba propozycji i kompletność są widoczne dla użytkowników Home Assistant i mogą być zapisywane."
+        "name": "Propozycje ostatniego podglądu"
       },
       "last_backup": {
-        "name": "Ostatnia przywracalna kopia",
-        "description": "Domyślnie wyłączony dla prywatności. Po włączeniu czas kopii jest widoczny dla użytkowników Home Assistant i może być zapisywany."
+        "name": "Ostatnia przywracalna kopia"
       }
     }
   }
