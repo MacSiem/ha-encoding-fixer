@@ -94,11 +94,94 @@ class DiagnosticTests(unittest.TestCase):
         self.assertNotEqual(preview._attr_unique_id, backups._attr_unique_id)
         self.assertEqual(preview._attr_entity_category, 'diagnostic')
 
-    def test_package_skipped_symlink_is_partial(self):
+    def test_package_scan_one_walk_and_skipped_symlink_is_partial(self):
         with tempfile.TemporaryDirectory() as name, tempfile.TemporaryDirectory() as outside:
             root = Path(name); packages = root / 'packages'; packages.mkdir()
             (packages / 'good.yaml').write_text('name: good\n')
             (packages / 'hidden.yaml').symlink_to(Path(outside) / 'private.yaml')
-            preview = workflow.build_file_preview(root, ['packages'])
-            self.assertEqual(preview['completeness'], 'complete')
-            self.assertEqual(diagnostics.preview_completeness(root, ['packages'], preview), 'partial')
+            original = workflow.scanner.os.walk
+            calls = []
+            def counted(*args, **kwargs):
+                calls.append(args[0]); return original(*args, **kwargs)
+            workflow.scanner.os.walk = counted
+            try:
+                preview = workflow.build_file_preview(root, ['packages'])
+            finally:
+                workflow.scanner.os.walk = original
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(preview['completeness'], 'partial')
+
+    def test_package_walk_exception_is_partial(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); packages = root / 'packages'; packages.mkdir()
+            (packages / 'good.yaml').write_text('name: good\n')
+            original = workflow.scanner.os.walk
+            def broken(*args, **kwargs):
+                yield next(original(*args, **kwargs))
+                if kwargs.get('onerror'): kwargs['onerror'](PermissionError('private path'))
+            workflow.scanner.os.walk = broken
+            try: preview = workflow.build_file_preview(root, ['packages'])
+            finally: workflow.scanner.os.walk = original
+            self.assertEqual(preview['completeness'], 'partial')
+            self.assertNotIn('private path', json.dumps(preview))
+
+    def test_backup_diagnostic_never_reads_backup_bytes(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root)
+            (root / 'configuration.yaml').write_text('a: 1\n')
+            bid = backup.create_backup_dir(hass)
+            backup.copy_file_to_backup(hass, bid, 'configuration.yaml')
+            original = backup._read_regular
+            def forbidden(*args): raise AssertionError('unexpected byte read')
+            backup._read_regular = forbidden
+            try: self.assertIsNotNone(diagnostics.latest_restorable_backup(hass))
+            finally: backup._read_regular = original
+
+    def test_backup_metadata_walk_error_returns_unknown(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root)
+            (root / 'configuration.yaml').write_text('a: 1\n')
+            bid = backup.create_backup_dir(hass); backup.copy_file_to_backup(hass, bid, 'configuration.yaml')
+            original = backup.os.walk
+            def broken(*args, **kwargs):
+                yield next(original(*args, **kwargs))
+                if kwargs.get('onerror'): kwargs['onerror'](PermissionError('private path'))
+            backup.os.walk = broken
+            try: self.assertIsNone(diagnostics.latest_restorable_backup(hass))
+            finally: backup.os.walk = original
+
+    def test_preview_websocket_walks_packages_once(self):
+        module = _load_websocket_module()
+        async def run(root):
+            class Hass(_Hass):
+                async def async_add_executor_job(self, f, *args): return f(*args)
+            packages = root / 'packages'; packages.mkdir()
+            (packages / 'good.yaml').write_text('name: good\n')
+            hass = Hass(root); state = diagnostics.Diagnostics(hass, 'entry')
+            service = module.EncodingFixerWorkflow(hass, state)
+            conn = types.SimpleNamespace(user=types.SimpleNamespace(id='admin'))
+            original = workflow.scanner.os.walk; calls = []
+            def counted(*args, **kwargs):
+                calls.append(args[0]); return original(*args, **kwargs)
+            workflow.scanner.os.walk = counted
+            try: result = await service.async_preview(conn, ['packages'])
+            finally: workflow.scanner.os.walk = original
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(result['completeness'], state.completeness)
+            await service.async_close()
+        with tempfile.TemporaryDirectory() as name: asyncio.run(run(Path(name)))
+
+    def test_backup_timestamp_refresh_tracks_new_and_removed_copies(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root)
+            target = root / 'configuration.yaml'; target.write_text('a: 1\n')
+            first = backup.create_backup_dir(hass); one = backup.copy_file_to_backup(hass, first, 'configuration.yaml')
+            first_path = root / one.backup_relative_path; os.utime(first_path, (1700000000, 1700000000))
+            self.assertEqual(diagnostics.latest_restorable_backup(hass).timestamp(), 1700000000)
+            target.write_text('a: 2\n')
+            result = backup.restore_backup(hass, first)
+            second_path = root / backup.BACKUP_DIR_NAME / result['rollback_backup_id'] / 'configuration.yaml'
+            os.utime(second_path, (1750000000, 1750000000))
+            self.assertEqual(diagnostics.latest_restorable_backup(hass).timestamp(), 1750000000)
+            second_path.unlink()
+            self.assertEqual(diagnostics.latest_restorable_backup(hass).timestamp(), 1700000000)

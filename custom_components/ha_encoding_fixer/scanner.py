@@ -340,53 +340,64 @@ def read_regular_bytes(config_root: Path, relative_path: str) -> bytes:
         os.close(descriptor)
 
 
-def iter_config_files(
+def _inventory_config_files(
     config_root: Path,
     target_ids: list[str] | tuple[str, ...] | None = None,
-) -> list[str]:
-    """Return only regular, allowlisted YAML files without following links."""
+) -> tuple[list[str], set[str]]:
+    """Collect files and skipped logical targets in a single traversal."""
     root = config_root.resolve(strict=True)
     files: list[str] = []
+    skipped: set[str] = set()
     for target_id in _validate_target_ids(target_ids):
         relative = TARGET_CATALOG[target_id]
         candidate = root / relative
         if target_id != "packages":
-            if not candidate.exists() and not candidate.is_symlink():
-                continue
             try:
                 _assert_regular_under_root(root, relative)
+                files.append(relative)
             except OSError:
-                continue
-            files.append(relative)
-            continue
-
-        if not candidate.exists() and not candidate.is_symlink():
+                skipped.add(target_id)
             continue
         if candidate.is_symlink() or not candidate.is_dir():
+            skipped.add(target_id)
             continue
+        def failed(_error: OSError) -> None:
+            skipped.add(target_id)
         for directory, directories, filenames in os.walk(
-            candidate,
-            topdown=True,
-            followlinks=False,
+            candidate, topdown=True, followlinks=False, onerror=failed
         ):
             directory_path = Path(directory)
+            for name in directories:
+                if name not in EXCLUDED_DIRS and (directory_path / name).is_symlink():
+                    skipped.add(target_id)
             directories[:] = [
-                name
-                for name in directories
-                if name not in EXCLUDED_DIRS
-                and not (directory_path / name).is_symlink()
+                name for name in directories
+                if name not in EXCLUDED_DIRS and not (directory_path / name).is_symlink()
             ]
             for filename in filenames:
                 path = directory_path / filename
-                if path.is_symlink() or path.suffix.lower() not in CONFIG_EXTENSIONS:
+                if path.suffix.lower() not in CONFIG_EXTENSIONS or filename.casefold() == "secrets.yaml":
+                    continue
+                if path.is_symlink():
+                    skipped.add(target_id)
                     continue
                 relative_path = path.relative_to(root).as_posix()
                 try:
                     _assert_regular_under_root(root, relative_path)
                 except OSError:
+                    skipped.add(target_id)
                     continue
                 files.append(relative_path)
-    return sorted(set(files))
+    return sorted(set(files)), skipped
+
+
+def iter_config_files(
+    config_root: Path,
+    target_ids: list[str] | tuple[str, ...] | None = None,
+) -> list[str]:
+    """Return only regular, allowlisted YAML files without following links."""
+    files, _ = _inventory_config_files(config_root, target_ids)
+    return files
 
 
 def _target_id(relative_path: str) -> str:
@@ -426,9 +437,9 @@ def scan_config_files(
     scanned_files = 0
 
     source_hashes: dict[str, str] = {}
-    files = iter_config_files(config_root, target_ids)
+    files, omitted = _inventory_config_files(config_root, target_ids)
     present = {_target_id(path) for path in files}
-    skipped_targets = [target for target in _validate_target_ids(target_ids) if target not in present]
+    skipped_targets = [target for target in _validate_target_ids(target_ids) if target not in present or target in omitted]
     for relative_path in files:
         scanned_files += 1
         try:

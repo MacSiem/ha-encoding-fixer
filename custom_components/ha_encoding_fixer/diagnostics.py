@@ -3,66 +3,22 @@
 from __future__ import annotations
 
 import asyncio
-import os
 from datetime import UTC, datetime
-from pathlib import Path
 from typing import Any, Callable
 
 from homeassistant.helpers.storage import Store
 
-from . import backup, scanner
-from .const import BACKUP_DIR_NAME, DOMAIN
-
-
-def preview_completeness(root: Path, target_ids: list[str], preview: dict[str, Any]) -> str:
-    """Conservatively detect skipped entries hidden by the scanner's allowlist walk."""
-    if preview["completeness"] != "complete":
-        return "partial"
-    if "packages" not in target_ids:
-        return "complete"
-    try:
-        package_root = root / "packages"
-        if package_root.is_symlink() or not package_root.is_dir():
-            return "partial"
-        def fail(error: OSError) -> None:
-            raise error
-        for current, directories, filenames in os.walk(package_root, followlinks=False, onerror=fail):
-            directory = Path(current)
-            directories[:] = [name for name in directories if name not in scanner.EXCLUDED_DIRS]
-            if any((directory / name).is_symlink() for name in directories):
-                return "partial"
-            for name in filenames:
-                path = directory / name
-                if name.casefold() != "secrets.yaml" and path.suffix.casefold() in scanner.CONFIG_EXTENSIONS and path.is_symlink():
-                    return "partial"
-        expected = set(scanner.iter_config_files(root, target_ids))
-        if expected != set(preview["source_hashes"]):
-            return "partial"
-        return "complete"
-    except (OSError, ValueError):
-        return "partial"
+from . import backup
+from .const import DOMAIN
 
 
 def latest_restorable_backup(hass: Any) -> datetime | None:
-    """Read actual restorable copies; empty, unsafe and offline-only sets do not count."""
+    """Return the latest eligible copy time using file metadata only."""
     try:
-        entries = backup.list_backups(hass)
-        root = Path(hass.config.path()).resolve(strict=True)
-        latest = None
-        for entry in entries:
-            if not entry["restorable"]:
-                continue
-            relative_root = f'{BACKUP_DIR_NAME}/{entry["backup_id"]}'
-            directory = backup._assert_no_symlink_path(root, relative_root, regular=False)
-            inventory = backup._backup_inventory(directory)
-            if not inventory or len(inventory) != entry["file_count"]:
-                continue
-            for relative in inventory:
-                path = backup._assert_no_symlink_path(root, f'{relative_root}/{relative}', regular=True)
-                stamp = datetime.fromtimestamp(path.stat().st_mtime, UTC)
-                if latest is None or stamp > latest:
-                    latest = stamp
-        return latest
+        entries = backup.list_backups(hass, _include_mtime=True)
+        timestamps = [entry["_latest_mtime"] for entry in entries
+                      if entry["restorable"] and entry["_latest_mtime"] is not None]
+        return datetime.fromtimestamp(max(timestamps), UTC) if timestamps else None
     except (OSError, ValueError, OverflowError):
         return None
 

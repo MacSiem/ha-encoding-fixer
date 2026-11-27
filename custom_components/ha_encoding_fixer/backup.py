@@ -334,7 +334,7 @@ def _backup_inventory(root: Path) -> dict[str, tuple[bytes, int]]:
     return entries
 
 
-def list_backups(hass: Any) -> list[dict[str, Any]]:
+def list_backups(hass: Any, *, _include_mtime: bool = False) -> list[dict[str, Any]]:
     """Return available backup directories and their relative file paths."""
     config_root = _config_root(hass)
     backup_root = config_root / BACKUP_DIR_NAME
@@ -352,6 +352,7 @@ def list_backups(hass: Any) -> list[dict[str, Any]]:
         ):
             continue
         file_count = 0
+        latest_mtime = None
         restorable = True
         def incomplete(_error: OSError) -> None:
             nonlocal restorable
@@ -380,17 +381,27 @@ def list_backups(hass: Any) -> list[dict[str, Any]]:
                     restorable = False
                     continue
                 file_count += 1
+                if _include_mtime:
+                    try:
+                        safe = _assert_no_symlink_path(config_root, path.relative_to(config_root).as_posix(), regular=True)
+                        info = safe.stat()
+                        if not stat.S_ISREG(info.st_mode):
+                            raise OSError("unsafe backup entry")
+                        latest_mtime = max(latest_mtime or info.st_mtime, info.st_mtime)
+                    except OSError:
+                        restorable = False
                 try:
                     validate_restore_content_path(relative_path)
                 except ValueError:
                     restorable = False
-        backups.append(
-            {
-                "backup_id": directory.name,
-                "file_count": file_count,
-                "restorable": restorable and file_count > 0,
-            }
-        )
+        item = {
+            "backup_id": directory.name,
+            "file_count": file_count,
+            "restorable": restorable and file_count > 0,
+        }
+        if _include_mtime:
+            item["_latest_mtime"] = latest_mtime
+        backups.append(item)
     return backups
 
 

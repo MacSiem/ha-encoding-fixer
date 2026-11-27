@@ -288,18 +288,7 @@ class EncodingFixerWorkflow:
             self._previews.move_to_end(preview_id)
 
         if self._diagnostics is not None:
-            if file_targets:
-                from .diagnostics import preview_completeness
-
-                try:
-                    completeness = await self.hass.async_add_executor_job(
-                        preview_completeness, Path(self.hass.config.path()), file_targets, file_preview
-                    )
-                except Exception:  # noqa: BLE001 - diagnostic failure cannot break preview
-                    completeness = "partial"
-            else:
-                completeness = "complete"
-            await self._diagnostics.async_record_preview(len(findings), completeness)
+            await self._diagnostics.async_record_preview(len(findings), file_preview["completeness"])
 
         return {
             "schema_version": 1,
