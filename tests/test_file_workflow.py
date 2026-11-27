@@ -873,3 +873,107 @@ class TransactionRegressionTests(unittest.TestCase):
                 with self.assertRaises(OSError): backup.restore_backup(hass, bid)
             finally: backup.copy_file_to_backup = original
             self.assertEqual(target.read_text(), 'a: 2\n')
+
+class ModeAndInventoryRegressionTests(unittest.TestCase):
+    def _plan(self, root):
+        hass = _Hass(root)
+        target = root / 'configuration.yaml'
+        target.write_text('name: WÅ‚Ä…cznik\n'); target.chmod(0o600)
+        preview = workflow.build_file_preview(root, ['configuration'])
+        bid = backup.create_backup_dir(hass)
+        plans = workflow.prepare_file_transaction(hass, preview, {preview['findings'][0]['change_id']}, bid)
+        return hass, target, plans
+
+    def test_workflow_chmod_before_write_is_stale(self):
+        with tempfile.TemporaryDirectory() as name:
+            hass, target, plans = self._plan(Path(name)); target.chmod(0o640)
+            with self.assertRaises(workflow.WorkflowError): workflow.commit_file_transaction(hass, plans)
+            self.assertEqual(target.stat().st_mode & 0o777, 0o640)
+
+    def test_workflow_chmod_after_write_survives_rollback(self):
+        with tempfile.TemporaryDirectory() as name:
+            hass, target, plans = self._plan(Path(name))
+            original = backup.atomic_write_config_file
+            def write_then_chmod(*args):
+                original(*args); target.chmod(0o640)
+            backup.atomic_write_config_file = write_then_chmod
+            try:
+                with self.assertRaises(workflow.WorkflowError): workflow.commit_file_transaction(hass, plans)
+            finally: backup.atomic_write_config_file = original
+            self.assertEqual(target.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(target.read_bytes(), plans[0]['updated'])
+
+    def test_restore_chmod_before_write_is_preserved(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root); target = root / 'configuration.yaml'
+            target.write_text('a: 1\n'); target.chmod(0o600)
+            bid = backup.create_backup_dir(hass); backup.copy_file_to_backup(hass, bid, 'configuration.yaml')
+            target.write_text('a: 2\n')
+            original = backup.copy_file_to_backup
+            def copy_then_chmod(*args):
+                result = original(*args); target.chmod(0o640); return result
+            backup.copy_file_to_backup = copy_then_chmod
+            try:
+                with self.assertRaises(OSError): backup.restore_backup(hass, bid)
+            finally: backup.copy_file_to_backup = original
+            self.assertEqual(target.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(target.read_text(), 'a: 2\n')
+
+    def test_restore_chmod_after_write_survives_rollback(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root); target = root / 'configuration.yaml'
+            target.write_text('a: 1\n'); target.chmod(0o600)
+            bid = backup.create_backup_dir(hass); backup.copy_file_to_backup(hass, bid, 'configuration.yaml')
+            target.write_text('a: 2\n')
+            original = backup._atomic_write
+            def write_then_chmod(path, data, mode=0o600):
+                original(path, data, mode)
+                if path == target.resolve(): target.chmod(0o640)
+            backup._atomic_write = write_then_chmod
+            try:
+                with self.assertRaises(OSError): backup.restore_backup(hass, bid)
+            finally: backup._atomic_write = original
+            self.assertEqual(target.stat().st_mode & 0o777, 0o640)
+            self.assertEqual(target.read_text(), 'a: 1\n')
+
+    def test_restore_initial_walk_error_precedes_any_writes(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root); target = root / 'configuration.yaml'
+            target.write_text('a: 1\n'); bid = backup.create_backup_dir(hass)
+            backup.copy_file_to_backup(hass, bid, 'configuration.yaml'); target.write_text('a: 2\n')
+            original = backup.os.walk
+            calls = 0
+            def broken(*args, **kwargs):
+                nonlocal calls
+                calls += 1
+                yield next(original(*args, **kwargs))
+                if calls == 1 and kwargs.get('onerror'):
+                    kwargs['onerror'](PermissionError('private path'))
+            backup.os.walk = broken
+            try:
+                before = set((root / backup.BACKUP_DIR_NAME).iterdir())
+                with self.assertRaises(OSError): backup.restore_backup(hass, bid)
+                self.assertEqual(before, set((root / backup.BACKUP_DIR_NAME).iterdir()))
+                self.assertEqual(target.read_text(), 'a: 2\n')
+            finally: backup.os.walk = original
+
+    def test_inventory_walk_error_fails_closed_before_restore_writes(self):
+        with tempfile.TemporaryDirectory() as name:
+            root = Path(name); hass = _Hass(root); target = root / 'configuration.yaml'
+            target.write_text('a: 1\n'); bid = backup.create_backup_dir(hass)
+            backup.copy_file_to_backup(hass, bid, 'configuration.yaml'); target.write_text('a: 2\n')
+            original = backup.os.walk
+            def broken(*args, **kwargs):
+                yield next(original(*args, **kwargs))
+                callback = kwargs.get('onerror')
+                if callback: callback(PermissionError('private path'))
+            backup.os.walk = broken
+            try:
+                result = backup.list_backups(hass)
+                self.assertFalse(result[0]['restorable'])
+                self.assertNotIn('private path', json.dumps(result))
+                before = set((root / backup.BACKUP_DIR_NAME).iterdir())
+                with self.assertRaises(OSError): backup.restore_backup(hass, bid)
+                self.assertEqual(before, set((root / backup.BACKUP_DIR_NAME).iterdir()))
+                self.assertEqual(target.read_text(), 'a: 2\n')
+            finally: backup.os.walk = original

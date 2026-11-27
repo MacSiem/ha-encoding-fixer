@@ -192,10 +192,10 @@ def rollback_file_transaction(hass: Any, plans: list[dict[str, Any]]) -> bool:
     restored = True
     for plan in reversed(plans):
         try:
-            current, _ = backup.read_config_file(hass, plan["relative_path"])
-            if current == plan["original"]:
+            current = backup.read_config_file(hass, plan["relative_path"])
+            if current == (plan["original"], plan["mode"]):
                 continue
-            if current != plan["updated"]:
+            if current != (plan["updated"], plan["mode"]):
                 restored = False
                 continue
             backup.atomic_write_config_file(
@@ -204,8 +204,8 @@ def rollback_file_transaction(hass: Any, plans: list[dict[str, Any]]) -> bool:
                 plan["original"],
                 plan["mode"],
             )
-            readback, _ = backup.read_config_file(hass, plan["relative_path"])
-            if readback != plan["original"]:
+            readback = backup.read_config_file(hass, plan["relative_path"])
+            if readback != (plan["original"], plan["mode"]):
                 restored = False
         except Exception:  # noqa: BLE001 - caller reports rollback_failed
             restored = False
@@ -224,8 +224,8 @@ def commit_file_transaction(
     try:
         for plan in plans:
             # A post-preview symlink swap is rejected immediately before write.
-            current, _ = backup.read_config_file(hass, plan["relative_path"])
-            if current != plan["original"]:
+            current = backup.read_config_file(hass, plan["relative_path"])
+            if current != (plan["original"], plan["mode"]):
                 raise WorkflowError("stale_preview")
             # Include the current target in rollback even if replace succeeds
             # but a later fsync/readback step raises.
@@ -236,8 +236,9 @@ def commit_file_transaction(
                 plan["updated"],
                 plan["mode"],
             )
-            readback, _ = backup.read_config_file(hass, plan["relative_path"])
-            if hashlib.sha256(readback).hexdigest() != plan["updated_hash"]:
+            readback, readback_mode = backup.read_config_file(hass, plan["relative_path"])
+            if (hashlib.sha256(readback).hexdigest() != plan["updated_hash"]
+                or readback_mode != plan["mode"]):
                 raise WorkflowError("readback_failed")
             validator(config_root, plan["relative_path"], readback)
     except Exception as err:  # noqa: BLE001

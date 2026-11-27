@@ -302,8 +302,8 @@ def restore_file_from_backup(
         regular=False,
     )
     _atomic_write(target, data, mode)
-    verified, _ = _read_regular(target)
-    if data != verified:
+    verified = _read_regular(target)
+    if (data, mode) != verified:
         raise OSError(f"Verification failed restoring {safe_relative_path}")
 
     return {
@@ -317,7 +317,7 @@ def _backup_inventory(root: Path) -> dict[str, tuple[bytes, int]]:
     """Read every entry, rejecting incomplete or unsafe inventories."""
     entries: dict[str, tuple[bytes, int]] = {}
     def fail(error: OSError) -> None:
-        raise error
+        raise OSError("backup inventory unavailable") from error
     for current, directories, filenames in os.walk(root, topdown=True, followlinks=False, onerror=fail):
         current_path = Path(current)
         for name in directories:
@@ -353,10 +353,14 @@ def list_backups(hass: Any) -> list[dict[str, Any]]:
             continue
         file_count = 0
         restorable = True
+        def incomplete(_error: OSError) -> None:
+            nonlocal restorable
+            restorable = False
         for current, directories, filenames in os.walk(
             directory,
             topdown=True,
             followlinks=False,
+            onerror=incomplete,
         ):
             current_path = Path(current)
             if any((current_path / name).is_symlink() for name in directories):
@@ -410,10 +414,13 @@ def restore_backup(
         raise FileNotFoundError(backup_id)
 
     plans: list[dict[str, Any]] = []
+    def fail_inventory(error: OSError) -> None:
+        raise OSError("backup inventory unavailable") from error
     for current, directories, filenames in os.walk(
         backup_root,
         topdown=True,
         followlinks=False,
+        onerror=fail_inventory,
     ):
         current_path = Path(current)
         if any((current_path / name).is_symlink() for name in directories):
@@ -489,8 +496,8 @@ def restore_backup(
                 raise OSError("target changed")
             changed.append(plan)
             _atomic_write(target, plan["data"], plan["mode"])
-            verified, _ = _read_regular(plan["target"])
-            if verified != plan["data"]:
+            verified = _read_regular(plan["target"])
+            if verified != (plan["data"], plan["mode"]):
                 raise OSError("restore verification failed")
     except Exception:
         rollback_failed = False
@@ -500,14 +507,18 @@ def restore_backup(
                 current = _read_regular(target) if target.exists() else None
                 if current == plan["original"]:
                     continue
-                if current is None or current[0] != plan["data"]:
+                if current != (plan["data"], plan["mode"]):
                     rollback_failed = True
                     continue
                 if plan["original"] is None:
                     target.unlink()
+                    if target.exists() or target.is_symlink():
+                        rollback_failed = True
                 else:
                     original_data, original_mode = plan["original"]
                     _atomic_write(target, original_data, original_mode)
+                    if _read_regular(target) != plan["original"]:
+                        rollback_failed = True
             except Exception:
                 rollback_failed = True
         if rollback_failed:
