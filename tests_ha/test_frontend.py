@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from homeassistant.components import frontend
@@ -58,9 +60,43 @@ async def test_upgrade_refreshes_versioned_resource(hass: HomeAssistant) -> None
     resources = hass.data["lovelace"].resources
     await resources.async_load()
     resources.loaded = True
-    await resources.async_create_item({"res_type": "module", "url": f"{CARD_URL}?v=5.9.9"})
+    old = await resources.async_create_item(
+        {"res_type": "module", "url": f"{CARD_URL}?v=6.0.3"}
+    )
+    await encoding_frontend._ownership(hass).save(
+        [{"id": old["id"], "url": old["url"], "type": old["type"]}]
+    )
     await _setup(hass)
-    assert [item["url"] for item in resources.async_items()] == [f"{CARD_URL}?v={VERSION}"]
+    updated = list(resources.async_items())
+    assert len(updated) == 1
+    assert updated[0]["id"] == old["id"]
+    assert updated[0]["url"] == f"{CARD_URL}?v={VERSION}"
+    assert updated[0]["type"] == "module"
+
+
+async def test_legacy_resource_serves_current_bundle_without_adoption(
+    hass: HomeAssistant, hass_client,
+) -> None:
+    assert await async_setup_component(hass, "lovelace", {})
+    resources = hass.data["lovelace"].resources
+    await resources.async_load()
+    resources.loaded = True
+    old = await resources.async_create_item(
+        {"res_type": "module", "url": f"{CARD_URL}?v=6.0.3"}
+    )
+
+    await _setup(hass)
+    assert list(resources.async_items()) == [old]
+
+    client = await hass_client()
+    response = await client.get(old["url"])
+    assert response.status == 200
+    bundled = Path(encoding_frontend.__file__).parent / "www" / encoding_frontend.CARD_FILENAME
+    assert await response.read() == bundled.read_bytes()
+    assert "max-age=2678400" not in response.headers.get("Cache-Control", "")
+
+    await encoding_frontend.async_unregister_card(hass)
+    assert list(resources.async_items()) == [old]
 
 
 async def test_manual_matching_url_is_not_adopted_or_changed(hass: HomeAssistant) -> None:

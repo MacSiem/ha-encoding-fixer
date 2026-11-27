@@ -130,10 +130,13 @@ type: custom:ha-encoding-fixer
 ```
 
 In storage-mode dashboards, the integration registers one Lovelace resource and
-updates it on upgrade. If an existing HACS card resource is present, it is
-reused. YAML-mode dashboards load the bundled card through Home Assistant's
-frontend registration; reload the browser after an upgrade. No manual resource
-entry is required.
+updates resources it can identify as its own. Existing matching resources are
+preserved, including those created by older versions before resource ownership
+was recorded. An older version number may therefore remain in the resource URL;
+the integration serves the current bundled card at that URL. If an existing
+HACS card resource is present, it is reused. YAML-mode dashboards load the
+bundled card through Home Assistant's frontend registration. Reload the browser
+after an upgrade. No manual resource entry is required.
 
 The optional one-line support link appears only for administrators. Set
 `show_support: false` in the card configuration to hide it; dismissing it is
