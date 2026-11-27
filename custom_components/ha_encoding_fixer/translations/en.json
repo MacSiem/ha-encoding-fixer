@@ -10,5 +10,17 @@
     "abort": {
       "already_configured": "Encoding Fixer is already configured."
     }
+  },
+  "entity": {
+    "sensor": {
+      "last_preview": {
+        "name": "Last preview proposals",
+        "description": "Disabled by default for privacy. If enabled, the proposal count and completeness are visible to Home Assistant users and may be recorded."
+      },
+      "last_backup": {
+        "name": "Last restorable backup",
+        "description": "Disabled by default for privacy. If enabled, the backup time is visible to Home Assistant users and may be recorded."
+      }
+    }
   }
 }

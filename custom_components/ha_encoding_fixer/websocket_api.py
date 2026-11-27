@@ -70,8 +70,9 @@ def _read_session(method):
 class EncodingFixerWorkflow:
     """Own previews and exactly-once operations for one HA runtime."""
 
-    def __init__(self, hass: HomeAssistant) -> None:
+    def __init__(self, hass: HomeAssistant, diagnostics=None) -> None:
         self.hass = hass
+        self._diagnostics = diagnostics
         self._lock = asyncio.Lock()
         self._previews: OrderedDict[str, dict[str, Any]] = OrderedDict()
         self._operations: OrderedDict[tuple[str, str], dict[str, Any]] = OrderedDict()
@@ -285,6 +286,20 @@ class EncodingFixerWorkflow:
             self._clean_previews()
             self._previews[preview_id] = record
             self._previews.move_to_end(preview_id)
+
+        if self._diagnostics is not None:
+            if file_targets:
+                from .diagnostics import preview_completeness
+
+                try:
+                    completeness = await self.hass.async_add_executor_job(
+                        preview_completeness, Path(self.hass.config.path()), file_targets, file_preview
+                    )
+                except Exception:  # noqa: BLE001 - diagnostic failure cannot break preview
+                    completeness = "partial"
+            else:
+                completeness = "complete"
+            await self._diagnostics.async_record_preview(len(findings), completeness)
 
         return {
             "schema_version": 1,

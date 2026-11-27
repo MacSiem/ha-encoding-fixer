@@ -6,6 +6,7 @@ import logging
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.const import Platform
 
 from .const import (
     DATA_FRONTEND_REGISTERED,
@@ -21,6 +22,7 @@ from .frontend import (
     async_unregister_card,
     async_unregister_panel,
 )
+from .diagnostics import Diagnostics
 from .websocket_api import EncodingFixerWorkflow, async_register_commands
 
 _LOGGER = logging.getLogger(__name__)
@@ -29,9 +31,12 @@ _LOGGER = logging.getLogger(__name__)
 async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Set up HA Encoding Fixer from a config entry."""
     bucket = hass.data.setdefault(DOMAIN, {})
-    bucket[entry.entry_id] = {}
+    diagnostics = Diagnostics(hass, entry.entry_id)
+    await diagnostics.async_load()
+    bucket[entry.entry_id] = {"diagnostics": diagnostics}
     if DATA_WORKFLOW not in bucket:
-        bucket[DATA_WORKFLOW] = EncodingFixerWorkflow(hass)
+        bucket[DATA_WORKFLOW] = EncodingFixerWorkflow(hass, diagnostics)
+    await hass.config_entries.async_forward_entry_setups(entry, [Platform.SENSOR])
 
     if not bucket.get(DATA_WS_REGISTERED):
         async_register_commands(hass)
@@ -50,6 +55,8 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload the config entry."""
     bucket = hass.data.get(DOMAIN, {})
+    if not await hass.config_entries.async_unload_platforms(entry, [Platform.SENSOR]):
+        return False
     bucket.pop(entry.entry_id, None)
     loaded_entry_ids = {
         key
