@@ -52,7 +52,7 @@ returns its existing result; reusing that ID for a different request is
 rejected. Results are remembered for up to 256 operations while this integration
 workflow remains loaded; a restart or unload clears that retry history.
 
-## Privacy
+## Privacy / Data
 
 - No telemetry, analytics, CDN assets or remote processing.
 - No access token, REST fallback, shell command or direct browser-side entity
@@ -64,6 +64,29 @@ workflow remains loaded; a restart or unload clears that retry history.
   Assistant logs without configuration contents.
 - Non-administrators see an explanation and the card makes no privileged
   requests. There is no reduced-permission or legacy fallback.
+- Two diagnostic entities are disabled by default. To enable them, open
+  Settings → Devices & services → Encoding Fixer → entities, select each
+  diagnostic entity and enable it. Their states are available through Home
+  Assistant to users with access to entity states and may be recorded according
+  to your Recorder settings.
+- The last preview entity contains only the finding count and a `completeness`
+  attribute (`complete`, `partial`, or `unknown`); before a preview its count
+  is unknown. A `partial` count covers only the successfully scanned portion:
+  it is not a clean bill of health, even when the count is zero. The aggregate
+  count and completeness are stored locally and can survive a restart.
+- The last backup entity shows the timestamp of the latest eligible restorable
+  backup, based on file modification time; it is unknown if none is available
+  or the inventory cannot be read. Neither entity exposes paths, file contents,
+  finding details or approval tokens. Creating or restoring a backup and applying
+  fixes remain separate administrator-only operations requiring review.
+
+**Dane diagnostyczne:** obie encje są domyślnie wyłączone. Włącz je w
+Ustawienia → Urządzenia i usługi → Encoding Fixer → encje. Ostatni podgląd
+pokazuje liczbę wyników i kompletność; `partial` oznacza tylko przebadaną część,
+więc również zero nie potwierdza poprawności całości. Ostatnia kopia pokazuje
+czas najnowszej kopii możliwej do przywrócenia; brak danych pozostaje nieznany.
+Agregat jest zapisywany lokalnie, a stany mogą trafić do Recorder. Encje nie
+zawierają ścieżek ani treści plików i nie uruchamiają naprawy.
 
 ## What it detects
 
