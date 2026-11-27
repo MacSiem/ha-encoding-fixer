@@ -65,6 +65,8 @@ class FrontendLifecycleTests(unittest.TestCase):
 
         class FakeStore:
             fail_save = False
+            fail_next_save = False
+            on_fail_save = None
 
             def __init__(self, *_args, **_kwargs):
                 pass
@@ -73,9 +75,13 @@ class FrontendLifecycleTests(unittest.TestCase):
                 return deepcopy(persisted) if persisted else None
 
             async def async_save(self, value):
-                if not self.fail_save:
-                    persisted.clear()
-                    persisted.update(deepcopy(value))
+                if self.fail_save or self.fail_next_save:
+                    type(self).fail_next_save = False
+                    if type(self).on_fail_save is not None:
+                        type(self).on_fail_save()
+                    return
+                persisted.clear()
+                persisted.update(deepcopy(value))
 
         storage.Store = FakeStore
         sys.modules["homeassistant.helpers.storage"] = storage
@@ -144,7 +150,7 @@ class FrontendLifecycleTests(unittest.TestCase):
             resources.items.clear()
 
             # Upgrade changes only the URL of the exact receipt-owned ID.
-            old_url = f"{module.CARD_URL}?v=6.0.2"
+            old_url = f"{module.CARD_URL}?v=5.9.0"
             resources.items.append({"id": "owned-old", "url": old_url, "type": "module"})
             persisted["owned_resources"] = [
                 {"id": "owned-old", "url": old_url, "type": "module"}
@@ -188,5 +194,51 @@ class FrontendLifecycleTests(unittest.TestCase):
                 await module.async_register_card(hass)
             self.assertEqual(resources.items, [])
             FakeStore.fail_save = False
+
+            # If an upgrade's receipt write fails, roll back the exact owned
+            # item to the still-durable old receipt before returning the error.
+            old_url = f"{module.CARD_URL}?v=6.0.2"
+            resources.items[:] = [{"id": "upgrade-save-fails", "url": old_url, "type": "module"}]
+            persisted["owned_resources"] = [
+                {"id": "upgrade-save-fails", "url": old_url, "type": "module"}
+            ]
+            FakeStore.fail_next_save = True
+            with self.assertRaisesRegex(ValueError, "save was not confirmed"):
+                await module.async_register_card(hass)
+            self.assertEqual(resources.async_items(), [
+                {"id": "upgrade-save-fails", "url": old_url, "type": "module"}
+            ])
+            self.assertEqual(persisted["owned_resources"], [
+                {"id": "upgrade-save-fails", "url": old_url, "type": "module"}
+            ])
+
+            # Later user drift invalidates the old receipt and is preserved.
+            resources.items[0]["url"] = "/user-edited-after-failed-upgrade.js"
+            await module.async_unregister_card(hass)
+            self.assertEqual(resources.async_items(), [{
+                "id": "upgrade-save-fails", "url": "/user-edited-after-failed-upgrade.js", "type": "module"
+            }])
+
+            # A foreign edit that lands while receipt persistence fails is not
+            # overwritten by the conditional rollback.
+            concurrent_old_url = f"{module.CARD_URL}?v=5.8.0"
+            resources.items[:] = [{"id": "upgrade-concurrent-edit", "url": concurrent_old_url, "type": "module"}]
+            persisted["owned_resources"] = [
+                {"id": "upgrade-concurrent-edit", "url": concurrent_old_url, "type": "module"}
+            ]
+            FakeStore.on_fail_save = lambda: resources.items[0].update(
+                url="/concurrent-user-edit.js"
+            )
+            FakeStore.fail_next_save = True
+            with self.assertRaisesRegex(ValueError, "save was not confirmed"):
+                await module.async_register_card(hass)
+            FakeStore.on_fail_save = None
+            self.assertEqual(resources.async_items(), [{
+                "id": "upgrade-concurrent-edit", "url": "/concurrent-user-edit.js", "type": "module"
+            }])
+            await module.async_unregister_card(hass)
+            self.assertEqual(resources.async_items(), [{
+                "id": "upgrade-concurrent-edit", "url": "/concurrent-user-edit.js", "type": "module"
+            }])
 
         asyncio.run(scenario())

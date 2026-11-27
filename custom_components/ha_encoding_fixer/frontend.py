@@ -137,10 +137,6 @@ def _lovelace_mode(hass: HomeAssistant) -> str | None:
     return lovelace.get("mode") if isinstance(lovelace, dict) else None
 
 
-def _is_ours(url: str) -> bool:
-    return url.split("?", 1)[0] == CARD_URL
-
-
 def _is_foreign_copy(url: str) -> bool:
     path = url.split("?", 1)[0]
     filename = path.rsplit("/", 1)[-1]
@@ -177,6 +173,7 @@ async def async_register_card(hass: HomeAssistant) -> str:
             if owned:
                 first, *rest = owned
                 if first["url"] != url or first["type"] != "module":
+                    previous = first
                     await resources.async_update_item(
                         first["id"], {"res_type": "module", "url": url}
                     )
@@ -191,7 +188,19 @@ async def async_register_card(hass: HomeAssistant) -> str:
                         raise ValueError("Encoding Fixer resource changed during update")
                     first = _receipt(current)
                     owned = [first, *rest]
-                    await state.save(owned)
+                    try:
+                        await state.save(owned)
+                    except Exception:
+                        # The old receipt is still durable. Roll back only if the
+                        # same resource still has the exact post-update identity.
+                        current = next((item for item in resources.async_items()
+                                        if item.get("id") == first["id"]), None)
+                        updated_receipt = {"id": first["id"], "url": url, "type": "module"}
+                        if current is not None and _receipt(current) == updated_receipt:
+                            await resources.async_update_item(
+                                previous["id"], {"res_type": previous["type"], "url": previous["url"]}
+                            )
+                        raise
                 for record in list(owned[1:]):
                     await _delete_owned(state, resources, owned, record)
                 return "resource"
