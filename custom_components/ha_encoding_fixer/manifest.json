@@ -1,6 +1,9 @@
 {
   "domain": "ha_encoding_fixer",
   "name": "Encoding Fixer",
+  "categories": [
+    "computers_network.cloud_developer_tools"
+  ],
   "codeowners": [
     "@MacSiem"
   ],
@@ -17,8 +20,5 @@
   "iot_class": "calculated",
   "issue_tracker": "https://github.com/MacSiem/ha-encoding-fixer/issues",
   "requirements": [],
-  "version": "6.1.0",
-  "categories": [
-    "computers_network.cloud_developer_tools"
-  ]
+  "version": "6.1.0"
 }
