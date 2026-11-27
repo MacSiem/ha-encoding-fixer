@@ -127,13 +127,15 @@ class FrontendLifecycleTests(unittest.TestCase):
         async def scenario():
             resources = Resources()
             hass = types.SimpleNamespace(
-                data={"lovelace": {"mode": "storage", "resources": resources}}, state="running"
+                data={"lovelace": {"mode": "storage", "resources": resources}, "extra_modules": set()}, state="running"
             )
 
             # A matching URL without a creation receipt is a manual resource.
             resources.items.append({"id": "manual", "url": module.CARD_URL, "type": "module"})
             self.assertEqual(await module.async_register_card(hass), "existing_resource")
+            self.assertIn(module.versioned_card_url(), hass.data["extra_modules"])
             await module.async_unregister_card(hass)
+            self.assertEqual(hass.data["extra_modules"], set())
             self.assertEqual(resources.items[0]["id"], "manual")
             resources.items.clear()
             persisted.clear()

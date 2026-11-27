@@ -168,6 +168,12 @@ async def async_register_card(hass: HomeAssistant) -> str:
             if foreign:
                 for record in list(owned):
                     await _delete_owned(state, resources, owned, record)
+                # A legacy URL under our own static route can still be cached by
+                # the browser after an upgrade. Load the current bundle early,
+                # without claiming or changing the user-managed resource.
+                if all(item.get("url", "").split("?", 1)[0] == CARD_URL for item in foreign):
+                    frontend.add_extra_js_url(hass, url)
+                    hass.data[DATA_EXTRA_URL] = url
                 _LOGGER.info("Encoding Fixer card already loaded from %s", foreign[0].get("url"))
                 return "existing_resource"
             if owned:
