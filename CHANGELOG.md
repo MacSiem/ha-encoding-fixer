@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.1.0 (upcoming)
+
+- Add a visual card editor and optional initial section, grouped unavailable targets, and theme-aware native controls. Existing cards keep their full view when no initial section is configured.
+- Add two opt-in diagnostic sensors for the last preview's finding count and completeness, and the latest eligible backup time. No repair action is exposed as an entity.
+- Report incomplete scans as partial, protect against incomplete restore inventories, and avoid overwriting external changes during rollback. Preserve administrator-only review and repair.
+
 ## 6.0.3 (2026-10-16)
 
 - Keep repair, selection and recovery actions at least 44 pixels tall, with full-size checkbox labels and controls that wrap to the card width.
