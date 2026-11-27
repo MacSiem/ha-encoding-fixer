@@ -3,12 +3,15 @@
 from __future__ import annotations
 
 import logging
+import asyncio
+from copy import deepcopy
 from pathlib import Path
 from typing import Any
 
 from homeassistant.components import frontend, panel_custom
 from homeassistant.components.http import StaticPathConfig
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CoreState, HomeAssistant
+from homeassistant.helpers.storage import Store
 
 from .const import (
     CARD_ELEMENT,
@@ -25,6 +28,76 @@ _LOGGER = logging.getLogger(__name__)
 
 DATA_STATIC = "ha_encoding_fixer_static_registered"
 DATA_EXTRA_URL = "ha_encoding_fixer_extra_url"
+DATA_OWNERSHIP = "ha_encoding_fixer_frontend_ownership"
+OWNERSHIP_KEY = "ha_encoding_fixer.frontend"
+
+
+class _ResourceOwnership:
+    """Serialize changes and keep durable receipts for resources we create."""
+
+    def __init__(self, hass: HomeAssistant) -> None:
+        self.hass = hass
+        self.lock = asyncio.Lock()
+
+    def store(self) -> Store:
+        return Store(self.hass, 1, OWNERSHIP_KEY, private=True, atomic_writes=True)
+
+    async def load(self) -> list[dict[str, str]]:
+        data = await self.store().async_load()
+        if data is None:
+            return []
+        records = data.get("owned_resources") if isinstance(data, dict) else None
+        if not isinstance(records, list) or any(
+            not isinstance(record, dict)
+            or any(not isinstance(record.get(key), str) or not record[key]
+                   for key in ("id", "url", "type"))
+            for record in records
+        ):
+            raise ValueError("Invalid Encoding Fixer resource ownership receipt")
+        return deepcopy(records)
+
+    async def save(self, records: list[dict[str, str]]) -> None:
+        if self.hass.state is CoreState.stopping:
+            raise ValueError("Cannot save resource ownership while HA is stopping")
+        data = {"owned_resources": deepcopy(records)}
+        await self.store().async_save(data)
+        if await self.store().async_load() != data:
+            raise ValueError("Encoding Fixer resource ownership save was not confirmed")
+
+
+def _ownership(hass: HomeAssistant) -> _ResourceOwnership:
+    if DATA_OWNERSHIP not in hass.data:
+        hass.data[DATA_OWNERSHIP] = _ResourceOwnership(hass)
+    return hass.data[DATA_OWNERSHIP]
+
+
+def _receipt(item: dict[str, Any]) -> dict[str, str]:
+    return {key: item[key] for key in ("id", "url", "type")}
+
+
+async def _reconcile_owned(state: _ResourceOwnership, resources: Any) -> list[dict[str, str]]:
+    saved = await state.load()
+    # Store I/O yields; re-read the collection afterward to avoid stale ownership.
+    current = {item["id"]: item for item in resources.async_items()}
+    owned = [record for record in saved if record["id"] in current
+             and all(current[record["id"]].get(key) == record[key]
+                     for key in ("url", "type"))]
+    if owned != saved:
+        await state.save(owned)
+    return owned
+
+
+async def _delete_owned(
+    state: _ResourceOwnership, resources: Any,
+    owned: list[dict[str, str]], record: dict[str, str],
+) -> None:
+    remaining = [item for item in owned if item["id"] != record["id"]]
+    current = next((item for item in resources.async_items()
+                    if item.get("id") == record["id"]), None)
+    if current is not None and _receipt(current) == record:
+        await resources.async_delete_item(record["id"])
+    await state.save(remaining)
+    owned[:] = remaining
 
 
 def versioned_card_url() -> str:
@@ -71,7 +144,7 @@ def _is_ours(url: str) -> bool:
 def _is_foreign_copy(url: str) -> bool:
     path = url.split("?", 1)[0]
     filename = path.rsplit("/", 1)[-1]
-    return filename in {CARD_FILENAME, "ha-encoding-fixer.js"} and not _is_ours(url)
+    return filename in {CARD_FILENAME, "ha-encoding-fixer.js"}
 
 
 async def async_register_card(hass: HomeAssistant) -> str:
@@ -84,31 +157,66 @@ async def async_register_card(hass: HomeAssistant) -> str:
     ``add_extra_js_url``. Returns how the card was registered.
     """
     url = versioned_card_url()
-    resources = _resources(hass)
-    if resources is not None and hasattr(resources, "async_create_item") and _lovelace_mode(hass) != "yaml":
-        if not getattr(resources, "loaded", True):
-            await resources.async_load()
-            resources.loaded = True
-        items = list(resources.async_items())
-        ours = [item for item in items if _is_ours(item.get("url", ""))]
-        foreign = [item for item in items if _is_foreign_copy(item.get("url", ""))]
-        if foreign:
-            for item in ours:
-                await resources.async_delete_item(item["id"])
-            _LOGGER.info("Encoding Fixer card already loaded from %s", foreign[0].get("url"))
-            return "existing_resource"
-        if ours:
-            first, *rest = ours
-            if first.get("url") != url:
-                await resources.async_update_item(first["id"], {"res_type": "module", "url": url})
-            for item in rest:
-                await resources.async_delete_item(item["id"])
+    state = _ownership(hass)
+    async with state.lock:
+        resources = _resources(hass)
+        if resources is not None and hasattr(resources, "async_create_item") and _lovelace_mode(hass) != "yaml":
+            if not getattr(resources, "loaded", True):
+                await resources.async_load()
+                resources.loaded = True
+            owned = await _reconcile_owned(state, resources)
+            owned_ids = {record["id"] for record in owned}
+            items = list(resources.async_items())
+            foreign = [item for item in items if item.get("id") not in owned_ids
+                       and _is_foreign_copy(item.get("url", ""))]
+            if foreign:
+                for record in list(owned):
+                    await _delete_owned(state, resources, owned, record)
+                _LOGGER.info("Encoding Fixer card already loaded from %s", foreign[0].get("url"))
+                return "existing_resource"
+            if owned:
+                first, *rest = owned
+                if first["url"] != url or first["type"] != "module":
+                    await resources.async_update_item(
+                        first["id"], {"res_type": "module", "url": url}
+                    )
+                    current = next((item for item in resources.async_items()
+                                    if item.get("id") == first["id"]), None)
+                    if current is None or _receipt(current) != {
+                        "id": first["id"], "url": url, "type": "module"
+                    }:
+                        await state.save(rest)
+                        if current is not None and _is_foreign_copy(current.get("url", "")):
+                            return "existing_resource"
+                        raise ValueError("Encoding Fixer resource changed during update")
+                    first = _receipt(current)
+                    owned = [first, *rest]
+                    await state.save(owned)
+                for record in list(owned[1:]):
+                    await _delete_owned(state, resources, owned, record)
+                return "resource"
+            created = await resources.async_create_item({"res_type": "module", "url": url})
+            if not isinstance(created.get("id"), str) or not created["id"]:
+                raise ValueError("Lovelace did not return a created resource ID")
+            record = _receipt(created)
+            current = next((item for item in resources.async_items()
+                            if item.get("id") == record["id"]), None)
+            if current is None or _receipt(current) != record:
+                if current is not None and _is_foreign_copy(current.get("url", "")):
+                    return "existing_resource"
+                raise ValueError("Encoding Fixer resource changed during creation")
+            try:
+                await state.save([*owned, record])
+            except Exception:
+                current = next((item for item in resources.async_items()
+                                if item.get("id") == record["id"]), None)
+                if current is not None and _receipt(current) == record:
+                    await resources.async_delete_item(record["id"])
+                raise
             return "resource"
-        await resources.async_create_item({"res_type": "module", "url": url})
-        return "resource"
-    frontend.add_extra_js_url(hass, url)
-    hass.data[DATA_EXTRA_URL] = url
-    return "extra_js_url"
+        frontend.add_extra_js_url(hass, url)
+        hass.data[DATA_EXTRA_URL] = url
+        return "extra_js_url"
 
 
 async def async_unregister_card(hass: HomeAssistant) -> None:
@@ -118,15 +226,19 @@ async def async_unregister_card(hass: HomeAssistant) -> None:
             frontend.remove_extra_js_url(hass, url)
         except KeyError:
             pass
-    resources = _resources(hass)
-    if resources is None or not hasattr(resources, "async_delete_item"):
-        return
-    if not getattr(resources, "loaded", True):
-        await resources.async_load()
-        resources.loaded = True
-    for item in list(resources.async_items()):
-        if _is_ours(item.get("url", "")):
-            await resources.async_delete_item(item["id"])
+    state = _ownership(hass)
+    async with state.lock:
+        resources = _resources(hass)
+        if resources is None or not hasattr(resources, "async_delete_item"):
+            if await state.load():
+                raise ValueError("Lovelace resources unavailable for ownership cleanup")
+            return
+        if not getattr(resources, "loaded", True):
+            await resources.async_load()
+            resources.loaded = True
+        owned = await _reconcile_owned(state, resources)
+        for record in list(owned):
+            await _delete_owned(state, resources, owned, record)
 
 
 async def async_register_panel(hass: HomeAssistant) -> bool:
