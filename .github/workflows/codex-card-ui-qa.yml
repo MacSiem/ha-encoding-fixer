@@ -1,0 +1,25 @@
+name: Codex synthetic card UI QA
+on:
+  push:
+    branches: [codex/encoding-fixer-final-ci-f1605bd-20261127]
+permissions:
+  contents: read
+jobs:
+  card-ui:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@a309ff8b426b58ec0e2a45f0f869d46889d02405
+        with:
+          node-version: '22'
+      - name: Install isolated browser tooling
+        run: |
+          mkdir -p "$RUNNER_TEMP/ef-playwright"
+          npm install --prefix "$RUNNER_TEMP/ef-playwright" playwright@1.56.1
+          "$RUNNER_TEMP/ef-playwright/node_modules/.bin/playwright" install --with-deps chromium
+      - name: Run synthetic UI scenario
+        run: node .github/qa/codex-card-ui.cjs
