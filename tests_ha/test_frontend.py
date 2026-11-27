@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import pytest
+
 from homeassistant.components import frontend
 from homeassistant.core import HomeAssistant
 from homeassistant.setup import async_setup_component
@@ -13,6 +15,7 @@ from custom_components.ha_encoding_fixer.const import (
     PANEL_URL_PATH,
     VERSION,
 )
+from custom_components.ha_encoding_fixer import frontend as encoding_frontend
 
 
 async def _setup(hass: HomeAssistant) -> MockConfigEntry:
@@ -58,6 +61,81 @@ async def test_upgrade_refreshes_versioned_resource(hass: HomeAssistant) -> None
     await resources.async_create_item({"res_type": "module", "url": f"{CARD_URL}?v=5.9.9"})
     await _setup(hass)
     assert [item["url"] for item in resources.async_items()] == [f"{CARD_URL}?v={VERSION}"]
+
+
+async def test_manual_matching_url_is_not_adopted_or_changed(hass: HomeAssistant) -> None:
+    assert await async_setup_component(hass, "lovelace", {})
+    resources = hass.data["lovelace"].resources
+    await resources.async_load()
+    resources.loaded = True
+    await resources.async_create_item({"res_type": "module", "url": CARD_URL})
+
+    assert await encoding_frontend.async_register_card(hass) == "existing_resource"
+    items = list(resources.async_items())
+    assert len(items) == 1
+    assert items[0]["url"] == CARD_URL
+    await encoding_frontend.async_unregister_card(hass)
+    assert list(resources.async_items()) == items
+
+
+async def test_owned_resource_receipt_survives_owner_object_recreation(hass: HomeAssistant) -> None:
+    await _setup(hass)
+    resources = hass.data["lovelace"].resources
+    before = list(resources.async_items())
+    assert len(before) == 1
+
+    hass.data.pop(encoding_frontend.DATA_OWNERSHIP)
+    assert await encoding_frontend.async_register_card(hass) == "resource"
+    after = list(resources.async_items())
+    assert len(after) == 1
+    assert after[0]["id"] == before[0]["id"]
+    assert after[0]["url"] == before[0]["url"]
+
+
+async def test_modified_owned_identity_is_preserved_on_removal(hass: HomeAssistant) -> None:
+    await _setup(hass)
+    resources = hass.data["lovelace"].resources
+    owned = list(resources.async_items())[0]
+    replacement = await resources.async_update_item(
+        owned["id"], {"res_type": "css", "url": "/local/manual-encoding-fixer.js"}
+    )
+
+    await encoding_frontend.async_unregister_card(hass)
+    assert list(resources.async_items()) == [replacement]
+
+
+async def test_changed_id_same_url_is_not_adopted_or_removed(hass: HomeAssistant) -> None:
+    await _setup(hass)
+    resources = hass.data["lovelace"].resources
+    original = list(resources.async_items())[0]
+    await resources.async_delete_item(original["id"])
+    replacement = await resources.async_create_item(
+        {"res_type": "module", "url": original["url"]}
+    )
+
+    assert await encoding_frontend.async_register_card(hass) == "existing_resource"
+    assert list(resources.async_items()) == [replacement]
+
+
+async def test_incomplete_receipt_save_removes_only_unchanged_created_resource(
+    hass: HomeAssistant, monkeypatch,
+) -> None:
+    assert await async_setup_component(hass, "lovelace", {})
+    resources = hass.data["lovelace"].resources
+
+    class UnconfirmedStore:
+        async def async_load(self):
+            return None
+
+        async def async_save(self, _data):
+            return None
+
+    monkeypatch.setattr(
+        encoding_frontend._ResourceOwnership, "store", lambda _state: UnconfirmedStore()
+    )
+    with pytest.raises(ValueError, match="save was not confirmed"):
+        await encoding_frontend.async_register_card(hass)
+    assert list(resources.async_items()) == []
 
 
 async def test_taken_panel_path_survives_unload(hass: HomeAssistant) -> None:
