@@ -101,7 +101,6 @@ async def test_legacy_resource_serves_current_bundle_without_adoption(
 
 
 async def test_manual_matching_url_is_not_adopted_or_changed(hass: HomeAssistant) -> None:
-    assert await async_setup_component(hass, "frontend", {})
     assert await async_setup_component(hass, "lovelace", {})
     resources = hass.data["lovelace"].resources
     await resources.async_load()
