@@ -1,7 +1,7 @@
 name: Codex HACS QA
 on:
   push:
-    branches: [codex/encoding-fixer-hacs-95aea98-qa-20261127]
+    branches: [codex/encoding-fixer-final-ci-f1605bd-20261127]
 permissions:
   contents: read
 jobs:
