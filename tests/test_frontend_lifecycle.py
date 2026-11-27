@@ -150,6 +150,7 @@ class FrontendLifecycleTests(unittest.TestCase):
                 (f"{module.CARD_URL}?v=6.0.3-beta.1", f"{module.CARD_URL}?v=6.0.3-beta.1"),
                 (f"{module.CARD_URL}?v=06.0.3", f"{module.CARD_URL}?v=06.0.3"),
                 (f"{module.CARD_URL}?v=9.0.0", f"{module.CARD_URL}?v=9.0.0"),
+                (f"{module.CARD_URL}?v={'9' * 5000}.0.0", f"{module.CARD_URL}?v={'9' * 5000}.0.0"),
             ]:
                 original = {"id": "legacy", "url": old_url, "type": "module"}
                 resources.items[:] = [original]

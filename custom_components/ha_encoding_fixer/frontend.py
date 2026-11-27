@@ -148,9 +148,15 @@ def _is_old_stock_resource(item: dict[str, Any]) -> bool:
     """Recognize only the historic stock URL and a strictly older release."""
     if item.get("type") != "module":
         return False
-    match = re.fullmatch(re.escape(CARD_URL) + r"\?v=(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", item.get("url", ""))
-    current = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", VERSION)
-    return bool(match and current and tuple(map(int, match.groups())) < tuple(map(int, current.groups())))
+    component = r"(0|[1-9][0-9]{0,8})"
+    version_pattern = rf"{component}\.{component}\.{component}"
+    match = re.fullmatch(
+        re.escape(CARD_URL) + rf"\?v={version_pattern}", item.get("url", "")
+    )
+    current = re.fullmatch(version_pattern, VERSION)
+    if not match or not current:
+        return False
+    return tuple(map(int, match.groups())) < tuple(map(int, current.groups()))
 
 
 async def async_register_card(hass: HomeAssistant) -> str:
