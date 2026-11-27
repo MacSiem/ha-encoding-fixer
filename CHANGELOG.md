@@ -1,6 +1,6 @@
 # Changelog
 
-## 6.1.0 (upcoming)
+## 6.1.0 (Unreleased)
 
 - Refresh the cache version of legacy stock dashboard resources on upgrade so the current card loads after a browser reload. For release rollback, restore a full pre-upgrade configuration and component snapshot with Home Assistant stopped.
 
