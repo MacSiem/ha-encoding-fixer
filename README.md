@@ -175,6 +175,22 @@ Encoding Fixer creates its backup root and operation directories with
 owner-only permissions (`0700`), but cannot replace correct host ownership,
 storage encryption or retention policy.
 
+## Rolling back an integration update
+
+Before upgrading, make a restorable snapshot of the full Home Assistant
+configuration, including its storage data and `custom_components/ha_encoding_fixer`
+from the same point in time. Confirm that your backup includes the component
+files. The repair backups described above cover repair targets, not the full
+configuration and integration version needed for this rollback.
+
+To restore that snapshot, stop Home Assistant, restore the configuration and
+component files together using your backup system, then start Home Assistant.
+Check that the integration loads, the dashboard resource and sidebar are present,
+and the expected version of the card runs after a browser refresh. Restoring a
+full snapshot also rolls back unrelated changes made since it was taken. A HACS
+file-only downgrade does not restore dashboard resources or other stored state
+and is not equivalent to this recovery procedure.
+
 ## Important limitations
 
 - The integration repairs encoding artifacts; it does not decide whether a

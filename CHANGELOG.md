@@ -2,7 +2,7 @@
 
 ## 6.1.0 (upcoming)
 
-- Refresh the cache version of legacy stock dashboard resources on upgrade so the current card loads after a browser reload.
+- Refresh the cache version of legacy stock dashboard resources on upgrade so the current card loads after a browser reload. For release rollback, restore a full pre-upgrade configuration and component snapshot with Home Assistant stopped.
 
 - Add a visual card editor and optional initial section, grouped unavailable targets, and theme-aware native controls. Existing cards keep their full view when no initial section is configured.
 - Add two opt-in diagnostic sensors for the last preview's finding count and completeness, and the latest eligible backup time. No repair action is exposed as an entity.
