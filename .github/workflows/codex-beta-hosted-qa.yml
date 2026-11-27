@@ -1,0 +1,49 @@
+name: Codex synthetic beta Docker QA
+on:
+  push:
+    branches: [codex/encoding-fixer-beta-hosted-qa-20261127]
+permissions:
+  contents: read
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          fetch-depth: 2
+          persist-credentials: false
+      - name: Isolate exact candidate integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          candidate=6f103f9deb07be07eb13d365e4bedd44564df31e
+          test "$(git rev-parse HEAD^)" = "$candidate"
+          echo "Candidate $(git rev-parse HEAD^)"
+          mkdir -p "$RUNNER_TEMP/ha-qa/.storage"
+          git archive "$candidate" custom_components/ha_encoding_fixer | tar -x -C "$RUNNER_TEMP/ha-qa"
+          printf 'default_config:\n' > "$RUNNER_TEMP/ha-qa/configuration.yaml"
+          cat > "$RUNNER_TEMP/ha-qa/.storage/core.config_entries" <<'JSON'
+          {"version":1,"minor_version":4,"key":"core.config_entries","data":{"entries":[{"created_at":"2026-01-01T00:00:00+00:00","data":{},"disabled_by":null,"discovery_keys":{},"domain":"ha_encoding_fixer","entry_id":"01JGFJJZ00N9MXB5R3QFWKK7AB","minor_version":1,"modified_at":"2026-01-01T00:00:00+00:00","options":{},"pref_disable_new_entities":false,"pref_disable_polling":false,"source":"user","subentries":[],"title":"Encoding Fixer","unique_id":"ha_encoding_fixer","version":1}]}}
+          JSON
+      - name: Launch isolated beta and verify native server and integration
+        shell: bash
+        run: |
+          set -euo pipefail
+          image='ghcr.io/home-assistant/home-assistant@sha256:df77d6639efe86aa081b85e9925169990712fc38243b77daa3b5840a6d945c4b'
+          docker pull --platform linux/amd64 "$image"
+          docker image inspect "$image" --format 'image={{.Id}} platform={{.Os}}/{{.Architecture}} version={{index .Config.Labels "io.hass.version"}}'
+          test "$(docker image inspect "$image" --format '{{.Os}}/{{.Architecture}} {{index .Config.Labels "io.hass.version"}}')" = 'linux/amd64 2026.12.0b2'
+          docker run -d --name codex-beta-synthetic --network bridge -p 127.0.0.1:18123:8123 -v "$RUNNER_TEMP/ha-qa:/config" "$image"
+          trap 'docker logs codex-beta-synthetic 2>&1 | tail -120; docker stop codex-beta-synthetic >/dev/null' EXIT
+          url=http://127.0.0.1:18123/ha_encoding_fixer/ha-encoding-fixer-card.js
+          for i in $(seq 1 150); do
+            if curl -fsS "$url" -o "$RUNNER_TEMP/served-card.js"; then break; fi
+            sleep 2
+          done
+          test -s "$RUNNER_TEMP/served-card.js"
+          cmp "$RUNNER_TEMP/ha-qa/custom_components/ha_encoding_fixer/www/ha-encoding-fixer-card.js" "$RUNNER_TEMP/served-card.js"
+          sha256sum "$RUNNER_TEMP/served-card.js"
+          curl -fsS -o /dev/null http://127.0.0.1:18123/
+          docker exec codex-beta-synthetic python -c 'from homeassistant.const import __version__; assert __version__ == "2026.12.0b2", __version__; print("Home Assistant", __version__)'
+          echo 'PASS: synthetic config entry loaded, integration serves exact candidate bundle, HTTP responds'
