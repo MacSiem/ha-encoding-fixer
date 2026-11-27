@@ -119,3 +119,32 @@ test('regained administrator cannot accept a preview reply from before the in-pl
     assert.equal(card._targets.length, 1); assert.equal(calls.length, count);
   } finally { dom.window.close(); }
 });
+
+test('backup choices preserve newest-first server order and config, theme and role changes do not mutate', async () => {
+  const { dom, card, hass, calls } = await fixture();
+  try {
+    const backups = [
+      { backup_id: '20261127-123000', file_count: 1, restorable: true },
+      { backup_id: '20261126-090000', file_count: 1, restorable: false },
+      { backup_id: '20261125-080000', file_count: 1, restorable: true },
+    ];
+    hass.callWS = async command => {
+      calls.push(command.type);
+      if (command.type.endsWith('/list_backups')) return { backups };
+      if (command.type.endsWith('/targets')) return { targets: [] };
+      throw Error('Unexpected mutating or other operation: ' + command.type);
+    };
+    await card._loadBackups();
+    const options = [...card.shadowRoot.querySelector('[data-backup-select]').options].filter(option => option.value);
+    assert.deepEqual(options.map(option => option.value), backups.map(item => item.backup_id));
+    assert.equal(options[1].disabled, true);
+    const start = calls.length;
+    card.setConfig({ type: 'custom:ha-encoding-fixer', default_tab: 'recovery', nested: { keep: true } });
+    card.hass = { ...hass, themes: { darkMode: true } };
+    card.hass = { ...hass, user: { ...hass.user, is_admin: false }, themes: { darkMode: true } };
+    card.hass = { ...hass, user: { ...hass.user, is_admin: true }, themes: { darkMode: false } };
+    await new Promise(resolve => setImmediate(resolve));
+    assert.deepEqual(calls.slice(start), ['ha_encoding_fixer/targets', 'ha_encoding_fixer/list_backups']);
+    assert.deepEqual(card._config.nested, { keep: true });
+  } finally { dom.window.close(); }
+});

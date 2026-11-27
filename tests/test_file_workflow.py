@@ -977,3 +977,18 @@ class ModeAndInventoryRegressionTests(unittest.TestCase):
                 self.assertEqual(before, set((root / backup.BACKUP_DIR_NAME).iterdir()))
                 self.assertEqual(target.read_text(), 'a: 2\n')
             finally: backup.os.walk = original
+
+class BackupChronologyTests(unittest.TestCase):
+    def test_backup_catalog_is_reverse_chronological_by_timestamp_id(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            backup_root = root / backup.BACKUP_DIR_NAME
+            for backup_id in ('20261126-090000', '20261127-123000', '20261125-080000'):
+                folder = backup_root / backup_id
+                folder.mkdir(parents=True)
+                (folder / 'configuration.yaml').write_text('name: synthetic\n')
+            hass = types.SimpleNamespace(config=types.SimpleNamespace(path=lambda *parts: str(root.joinpath(*parts))))
+            self.assertEqual(
+                [item['backup_id'] for item in backup.list_backups(hass)],
+                ['20261127-123000', '20261126-090000', '20261125-080000'],
+            )
