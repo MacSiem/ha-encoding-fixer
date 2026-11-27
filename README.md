@@ -130,13 +130,14 @@ type: custom:ha-encoding-fixer
 ```
 
 In storage-mode dashboards, the integration registers one Lovelace resource and
-updates resources it can identify as its own. Existing matching resources are
-preserved, including those created by older versions before resource ownership
-was recorded. An older version number may therefore remain in the resource URL;
-the integration serves the current bundled card at that URL. If an existing
-HACS card resource is present, it is reused. YAML-mode dashboards load the
-bundled card through Home Assistant's frontend registration. Reload the browser
-after an upgrade. No manual resource entry is required.
+updates resources it can identify as its own. For an older stock module URL on
+the integration's own route, it updates only the `v` cache parameter while
+preserving the resource ID and type; it does not claim or remove that entry.
+Custom URLs and existing HACS card resources are left unchanged. When a HACS
+copy is present, it takes precedence and the old stock URL is not updated.
+YAML resources are not changed; YAML-mode dashboards use Home Assistant's
+frontend registration. Reload the browser after an upgrade. No manual resource
+entry is required.
 
 The optional one-line support link appears only for administrators. Set
 `show_support: false` in the card configuration to hide it; dismissing it is
