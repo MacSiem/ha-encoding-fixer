@@ -86,7 +86,8 @@ async def test_legacy_resource_serves_current_bundle_without_adoption(
     )
 
     await _setup(hass)
-    assert list(resources.async_items()) == [old]
+    updated = {**old, "url": f"{CARD_URL}?v={VERSION}"}
+    assert list(resources.async_items()) == [updated]
 
     client = await hass_client()
     response = await client.get(old["url"])
@@ -96,7 +97,7 @@ async def test_legacy_resource_serves_current_bundle_without_adoption(
     assert "max-age=2678400" not in response.headers.get("Cache-Control", "")
 
     await encoding_frontend.async_unregister_card(hass)
-    assert list(resources.async_items()) == [old]
+    assert list(resources.async_items()) == [updated]
 
 
 async def test_manual_matching_url_is_not_adopted_or_changed(hass: HomeAssistant) -> None:

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import re
 import asyncio
 from copy import deepcopy
 from pathlib import Path
@@ -143,6 +144,15 @@ def _is_foreign_copy(url: str) -> bool:
     return filename in {CARD_FILENAME, "ha-encoding-fixer.js"}
 
 
+def _is_old_stock_resource(item: dict[str, Any]) -> bool:
+    """Recognize only the historic stock URL and a strictly older release."""
+    if item.get("type") != "module":
+        return False
+    match = re.fullmatch(re.escape(CARD_URL) + r"\?v=(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", item.get("url", ""))
+    current = re.fullmatch(r"(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)", VERSION)
+    return bool(match and current and tuple(map(int, match.groups())) < tuple(map(int, current.groups())))
+
+
 async def async_register_card(hass: HomeAssistant) -> str:
     """Make the card available to dashboards.
 
@@ -168,12 +178,18 @@ async def async_register_card(hass: HomeAssistant) -> str:
             if foreign:
                 for record in list(owned):
                     await _delete_owned(state, resources, owned, record)
-                # A legacy URL under our own static route can still be cached by
-                # the browser after an upgrade. Load the current bundle early,
-                # without claiming or changing the user-managed resource.
+                # Never displace another installed copy. Only update an exact
+                # historic stock URL; the resource remains user-managed.
                 if all(item.get("url", "").split("?", 1)[0] == CARD_URL for item in foreign):
-                    frontend.add_extra_js_url(hass, url)
-                    hass.data[DATA_EXTRA_URL] = url
+                    for item in foreign:
+                        if not _is_old_stock_resource(item):
+                            continue
+                        current = next((entry for entry in resources.async_items()
+                                        if entry.get("id") == item.get("id")), None)
+                        if current is not None and _receipt(current) == _receipt(item):
+                            await resources.async_update_item(
+                                item["id"], {"res_type": "module", "url": url}
+                            )
                 _LOGGER.info("Encoding Fixer card already loaded from %s", foreign[0].get("url"))
                 return "existing_resource"
             if owned:

@@ -134,12 +134,40 @@ class FrontendLifecycleTests(unittest.TestCase):
             resources.items.append({"id": "manual", "url": module.CARD_URL, "type": "module"})
             self.assertEqual(await module.async_register_card(hass), "existing_resource")
             self.assertEqual(await module.async_register_card(hass), "existing_resource")
-            self.assertEqual(hass.data["extra_modules"], {module.versioned_card_url()})
+            self.assertEqual(hass.data["extra_modules"], set())
             await module.async_unregister_card(hass)
             self.assertEqual(hass.data["extra_modules"], set())
             self.assertEqual(resources.items, [{"id": "manual", "url": module.CARD_URL, "type": "module"}])
             resources.items.clear()
             persisted.clear()
+
+            # Only a canonical older release may receive a new cache key.
+            for old_url, expected_url in [
+                (f"{module.CARD_URL}?v=6.0.3", module.versioned_card_url()),
+                (f"{module.CARD_URL}?v=6.0.3&channel=custom", f"{module.CARD_URL}?v=6.0.3&channel=custom"),
+                (f"{module.CARD_URL}?v=6.0.3#custom", f"{module.CARD_URL}?v=6.0.3#custom"),
+                (f"{module.CARD_URL}?v=custom", f"{module.CARD_URL}?v=custom"),
+                (f"{module.CARD_URL}?v=6.0.3-beta.1", f"{module.CARD_URL}?v=6.0.3-beta.1"),
+                (f"{module.CARD_URL}?v=06.0.3", f"{module.CARD_URL}?v=06.0.3"),
+                (f"{module.CARD_URL}?v=9.0.0", f"{module.CARD_URL}?v=9.0.0"),
+            ]:
+                original = {"id": "legacy", "url": old_url, "type": "module"}
+                resources.items[:] = [original]
+                for _ in range(2):
+                    self.assertEqual(await module.async_register_card(hass), "existing_resource")
+                    self.assertEqual(resources.async_items(), [{**original, "url": expected_url}])
+                    self.assertEqual(persisted.get("owned_resources", []), [])
+                    await module.async_unregister_card(hass)
+                    self.assertEqual(resources.async_items(), [{**original, "url": expected_url}])
+                resources.items.clear()
+
+            css = {"id": "css", "url": f"{module.CARD_URL}?v=6.0.3", "type": "css"}
+            resources.items[:] = [css]
+            await module.async_register_card(hass)
+            self.assertEqual(resources.async_items(), [css])
+            await module.async_unregister_card(hass)
+            self.assertEqual(resources.async_items(), [css])
+            resources.items.clear()
 
             # An unowned HACS resource is preserved; repeated setup adds no copy.
             manual_hacs = {
