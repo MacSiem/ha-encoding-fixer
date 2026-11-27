@@ -197,6 +197,8 @@ async def test_unload_removes_owned_resource_and_panel(hass: HomeAssistant) -> N
 async def test_yaml_fallback_unregisters_and_reload_restores_only_owned_url(hass: HomeAssistant) -> None:
     from custom_components.ha_encoding_fixer.frontend import async_register_card, async_unregister_card
     assert await async_setup_component(hass, "frontend", {})
+    # Finish frontend's deferred HTTP startup before fixture shutdown flushes stores.
+    await hass.async_block_till_done()
     hass.data["lovelace"] = {"mode": "yaml"}
     frontend.add_extra_js_url(hass, "/foreign.js")
     assert await async_register_card(hass) == "extra_js_url"

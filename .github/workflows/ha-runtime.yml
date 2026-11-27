@@ -15,6 +15,9 @@ jobs:
           - core: '2025.2.0'
             python: '3.13'
             harness: '0.13.210'
+          - core: '2026.10.1'
+            python: '3.14'
+            harness: '0.13.372'
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - uses: actions/setup-python@a309ff8b426b58ec0e2a45f0f869d46889d02405 # v6.2.0
@@ -39,4 +42,4 @@ jobs:
           PY
           )
       - name: Integration inside a real Home Assistant core
-        run: python -m pytest -s tests_ha/test_frontend.py::test_yaml_fallback_unregisters_and_reload_restores_only_owned_url -o asyncio_mode=auto -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
+        run: python -m pytest tests_ha -o asyncio_mode=auto -o asyncio_default_fixture_loop_scope=function -p no:cacheprovider
