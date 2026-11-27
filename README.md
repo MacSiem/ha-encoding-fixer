@@ -99,6 +99,13 @@ repaired confidently are not offered as changes.
 
 ## Screenshots
 
+![Encoding Fixer 6.1.0 in Polish, dark theme](docs/screenshots/card-610-pl-dark-desktop.png)
+
+The 6.1.0 screenshot shows a synthetic, redacted preview in a native Home
+Assistant panel. A [narrow viewport capture](docs/screenshots/card-610-pl-dark-mobile.png)
+shows the top of the same panel. The English light and dark screenshots below
+are from 6.0.3.
+
 | Light | Dark |
 |---|---|
 | ![Encoding Fixer light theme](docs/screenshots/card-review-en-light.jpg) | ![Encoding Fixer dark theme](docs/screenshots/card-review-en-dark.jpg) |
