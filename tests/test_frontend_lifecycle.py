@@ -133,10 +133,11 @@ class FrontendLifecycleTests(unittest.TestCase):
             # A matching URL without a creation receipt is a manual resource.
             resources.items.append({"id": "manual", "url": module.CARD_URL, "type": "module"})
             self.assertEqual(await module.async_register_card(hass), "existing_resource")
-            self.assertIn(module.versioned_card_url(), hass.data["extra_modules"])
+            self.assertEqual(await module.async_register_card(hass), "existing_resource")
+            self.assertEqual(hass.data["extra_modules"], {module.versioned_card_url()})
             await module.async_unregister_card(hass)
             self.assertEqual(hass.data["extra_modules"], set())
-            self.assertEqual(resources.items[0]["id"], "manual")
+            self.assertEqual(resources.items, [{"id": "manual", "url": module.CARD_URL, "type": "module"}])
             resources.items.clear()
             persisted.clear()
 
@@ -149,6 +150,20 @@ class FrontendLifecycleTests(unittest.TestCase):
             self.assertEqual(await module.async_register_card(hass), "existing_resource")
             self.assertEqual(await module.async_register_card(hass), "existing_resource")
             self.assertEqual(resources.async_items(), [manual_hacs])
+            resources.items.clear()
+
+            # A manual legacy resource coexisting with HACS must not cause our
+            # current bundle to override the foreign implementation.
+            manual_legacy = {"id": "legacy-manual", "url": f"{module.CARD_URL}?v=6.0.3", "type": "module"}
+            for entries in ([manual_legacy, manual_hacs], [manual_hacs, manual_legacy]):
+                resources.items[:] = deepcopy(entries)
+                for _ in range(2):
+                    self.assertEqual(await module.async_register_card(hass), "existing_resource")
+                    self.assertEqual(hass.data["extra_modules"], set())
+                    self.assertEqual(resources.async_items(), entries)
+                    await module.async_unregister_card(hass)
+                    self.assertEqual(hass.data["extra_modules"], set())
+                    self.assertEqual(resources.async_items(), entries)
             resources.items.clear()
 
             # Upgrade changes only the URL of the exact receipt-owned ID.
