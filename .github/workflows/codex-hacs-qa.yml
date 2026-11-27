@@ -1,0 +1,16 @@
+name: Codex HACS QA
+on:
+  push:
+    branches: [codex/encoding-fixer-hacs-95aea98-qa-20261127]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd
+        with:
+          persist-credentials: false
+      - uses: hacs/action@1ebf01c408f29afcb6406bd431bc98fd8cbb15aa
+        with:
+          category: integration
